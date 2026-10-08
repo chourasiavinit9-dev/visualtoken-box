@@ -94,7 +94,14 @@ html, body {
     overflow: hidden;
 }
 
-.panel-left { grid-column: 1; grid-row: 1; }
+.panel-left { 
+    grid-column: 1; 
+    grid-row: 1; 
+    overflow-y: auto;
+    max-height: calc(100vh - 80px);
+}
+.panel-left::-webkit-scrollbar { width: 4px; }
+.panel-left::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
 .panel-center { grid-column: 2; grid-row: 1; }
 .panel-right { grid-column: 3; grid-row: 1; }
 .panel-bottom { grid-column: 1 / -1; grid-row: 2; min-height: 130px; overflow: visible; }

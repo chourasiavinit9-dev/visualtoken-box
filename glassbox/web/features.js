@@ -362,42 +362,101 @@ const HeadDetector = (() => {
    ───────────────────────────────────────────────────────────────────────── */
 const TokenPictograph = (() => {
     const COLORS = 8; // number of tc-N classes
+    let debounceTimer = null;
+    let cachedPromptTokens = [];
+    let cachedPromptTokenIds = [];
+    let cachedPromptText = '';
 
-    function render(promptText, promptTokens, genTokens) {
+    function init(inputEl) {
+        if (!inputEl) inputEl = document.getElementById('prompt');
+        if (inputEl) {
+            // Live update as user types in prompt box
+            inputEl.addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    const txt = inputEl.value.trim();
+                    if (txt) fetchAndRender(txt);
+                }, 180);
+            });
+            // Fetch & render initial prompt immediately on page load
+            const initial = inputEl.value.trim() || 'What is the capital of India?';
+            fetchAndRender(initial);
+        }
+    }
+
+    async function fetchAndRender(text) {
+        try {
+            const res = await fetch(`/api/tokenize?text=${encodeURIComponent(text)}`);
+            if (res.ok) {
+                const data = await res.json();
+                cachedPromptText = data.text || text;
+                cachedPromptTokens = data.token_strs || [];
+                cachedPromptTokenIds = data.token_ids || [];
+                render(cachedPromptText, cachedPromptTokens, cachedPromptTokenIds, []);
+            }
+        } catch (e) {
+            console.warn('Tokenize fetch error:', e);
+        }
+    }
+
+    function render(promptText, promptTokens, promptTokenIds = [], genTokens = []) {
         const container = document.getElementById('pictograph-stage');
         if (!container) return;
         container.innerHTML = '';
 
-        // Row 1: Raw text
-        _addRow(container, 'raw text', [
-            { type: 'word', text: promptText }
-        ]);
-
-        // Row 2: Prompt tokens (colorized)
-        const pTokenEls = promptTokens.map((tok, i) => ({
-            type: 'token', text: tok, id: i, colorIdx: i % COLORS
-        }));
-        _addRow(container, 'prompt tokens', pTokenEls, true);
-
-        // Row 3: Generated tokens
-        if (genTokens && genTokens.length > 0) {
-            const gTokenEls = genTokens.map((tok, i) => ({
-                type: 'token', text: tok, id: promptTokens.length + i,
-                colorIdx: (promptTokens.length + i) % COLORS, isGen: true
-            }));
-            _addRow(container, '+ generation', gTokenEls, true);
+        if (!promptTokens || promptTokens.length === 0) {
+            container.innerHTML = '<div style="font-size:0.72rem;color:var(--text-muted);padding:4px 0;">Type a prompt above to see how it splits into tokens ↓</div>';
+            return;
         }
 
-        // Row 4: Summary stat
+        cachedPromptText = promptText || cachedPromptText;
+        cachedPromptTokens = promptTokens;
+        if (promptTokenIds && promptTokenIds.length > 0) {
+            cachedPromptTokenIds = promptTokenIds;
+        }
+
+        // Row 1: Words breakdown
+        const words = (promptText || '').trim().split(/\s+/).filter(Boolean);
+        const wordItems = words.map(w => ({ type: 'word', text: w }));
+        _addRow(container, 'words', wordItems.length > 0 ? wordItems : [{ type: 'word', text: promptText || '—' }]);
+
+        // Row 2: Prompt BPE tokens with Token IDs
+        const pTokenEls = promptTokens.map((tok, i) => ({
+            type: 'token',
+            text: tok,
+            id: (cachedPromptTokenIds && cachedPromptTokenIds[i] !== undefined) ? `#${cachedPromptTokenIds[i]}` : `t${i}`,
+            colorIdx: i % COLORS
+        }));
+        _addRow(container, 'subwords', pTokenEls, true);
+
+        // Row 3: Generated tokens (if present)
+        if (genTokens && genTokens.length > 0) {
+            const gTokenEls = genTokens.map((tok, i) => ({
+                type: 'token',
+                text: tok,
+                id: `+${i + 1}`,
+                colorIdx: (promptTokens.length + i) % COLORS,
+                isGen: true
+            }));
+            _addRow(container, 'generated', gTokenEls, true);
+        }
+
+        // Row 4: Summary stats
         const total = promptTokens.length + (genTokens ? genTokens.length : 0);
+        const numWords = Math.max(1, words.length);
+        const ratio = (promptTokens.length / numWords).toFixed(2);
         const statsRow = document.createElement('div');
         statsRow.className = 'pictograph-row';
-        statsRow.style.justifyContent = 'flex-end';
+        statsRow.style.justifyContent = 'space-between';
+        statsRow.style.paddingTop = '4px';
+        statsRow.style.borderTop = '1px solid rgba(255,255,255,0.06)';
         statsRow.innerHTML = `
-            <span class="pictograph-row-label"></span>
-            <span style="font-size:0.68rem;color:var(--text-muted);">
-                ${promptTokens.length} prompt + ${genTokens ? genTokens.length : 0} generated
-                = <b style="color:var(--text)">${total} tokens total</b>
+            <span style="font-size:0.65rem;color:var(--text-muted);font-family:var(--font-mono);">
+                ratio: <b style="color:#7aa2ff;">${ratio}</b> tok/word
+            </span>
+            <span style="font-size:0.68rem;color:var(--text-muted);font-family:var(--font-mono);">
+                ${promptTokens.length} prompt + ${genTokens ? genTokens.length : 0} gen
+                = <b style="color:var(--text);">${total} tokens</b>
             </span>`;
         container.appendChild(statsRow);
     }
@@ -416,26 +475,33 @@ const TokenPictograph = (() => {
         arrow.textContent = '→';
         row.appendChild(arrow);
 
+        const itemsWrap = document.createElement('div');
+        itemsWrap.style.display = 'flex';
+        itemsWrap.style.flexWrap = 'wrap';
+        itemsWrap.style.gap = '4px';
+        itemsWrap.style.alignItems = 'center';
+        itemsWrap.style.flex = '1';
+
         items.forEach(item => {
             if (item.type === 'word') {
                 const el = document.createElement('span');
                 el.className = 'pic-word';
-                el.textContent = item.text.length > 40 ? item.text.slice(0, 40) + '…' : item.text;
-                row.appendChild(el);
+                el.textContent = item.text;
+                itemsWrap.appendChild(el);
             } else {
                 const wrap = document.createElement('span');
                 wrap.className = 'pic-token';
-                wrap.title = `Token ID: ${item.id}`;
+                wrap.title = `Token ID: ${item.id} | String: "${item.text}"`;
 
                 const txt = document.createElement('span');
                 txt.className = `pic-token-text tc-${item.colorIdx}`;
-                // Visualise spaces as ·
+                // Visualise leading/trailing space with ·
                 let display = (item.text || '').replace(/ /g, '·');
-                if (display.length > 6) display = display.slice(0, 6) + '…';
-                txt.textContent = display || '∅';
+                if (!display) display = '␣';
+                txt.textContent = display;
 
                 if (item.isGen) {
-                    txt.style.opacity = '0.75';
+                    txt.style.opacity = '0.85';
                     txt.style.borderStyle = 'dashed';
                 }
 
@@ -445,12 +511,13 @@ const TokenPictograph = (() => {
 
                 wrap.append(txt);
                 if (showIds) wrap.append(idEl);
-                row.appendChild(wrap);
+                itemsWrap.appendChild(wrap);
             }
         });
 
+        row.appendChild(itemsWrap);
         container.appendChild(row);
     }
 
-    return { render };
+    return { init, render, fetchAndRender };
 })();

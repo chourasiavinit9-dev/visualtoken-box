@@ -30,6 +30,7 @@
     let steps = [];
     let config = null;
     let promptTokens = [];
+    let promptTokenIds = [];
     let genTokens = [];
     let allAttentionData = [];
     let ws = null;
@@ -42,6 +43,7 @@
     // ── Initialize new feature modules ──────────────────────────────
     Steering.init();
     Rollout.init();
+    TokenPictograph.init(promptInput);
     
     const imageUpload = document.getElementById('image-upload');
     const imageFilename = document.getElementById('image-filename');
@@ -350,12 +352,13 @@
             const msg = JSON.parse(e.data);
             if (msg.type === 'init') {
                 config = msg.config;
-                promptTokens = msg.prompt_token_strs;
+                promptTokens = msg.prompt_token_strs || [];
+                promptTokenIds = msg.prompt_token_ids || [];
                 populateSelectors();
                 renderTokenStream();
                 // 🖼️ Pictograph: render prompt tokens immediately
                 if (promptTokens.length > 0) {
-                    TokenPictograph.render(runQuestion || runPrompt, promptTokens, []);
+                    TokenPictograph.render(runQuestion || runPrompt, promptTokens, promptTokenIds, []);
                 }
             } else if (msg.type === 'step') {
                 steps.push(msg);
@@ -391,7 +394,7 @@
                     _updateHeadBadge();
                 }
                 // 🖼️ Pictograph: update with generated tokens
-                TokenPictograph.render(runQuestion || runPrompt, promptTokens, genTokens);
+                TokenPictograph.render(runQuestion || runPrompt, promptTokens, promptTokenIds, genTokens);
                 selectHighestEntropyStep();
             }
         };

@@ -139,6 +139,7 @@ async def ws_generate(ws: WebSocket):
         )
 
         # Send initial metadata (show the original user prompt to UI, not the template)
+        token_ids = tok.encode(prompt)
         await ws.send_json({
             "type": "init",
             "config": {
@@ -149,7 +150,8 @@ async def ws_generate(ws: WebSocket):
                 "vocab_size": model.config.vocab_size,
             },
             "prompt": prompt,
-            "prompt_token_strs": [tok.decode(t) for t in tok.encode(prompt)],
+            "prompt_token_ids": token_ids,
+            "prompt_token_strs": [tok.decode(t) for t in token_ids],
         })
 
         # Stream generation using the formatted prompt
@@ -208,6 +210,22 @@ async def root():
 
 # Mount everything else as static
 app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
+
+
+# ─── Tokenize Endpoint ─────────────────────────────────────────
+@app.get("/api/tokenize")
+async def tokenize_endpoint(text: str = ""):
+    tok = STATE.get("tokenizer")
+    if not tok:
+        return {"text": text, "token_ids": [], "token_strs": []}
+    query_text = text if text else "What is the capital of India?"
+    ids = tok.encode(query_text)
+    token_strs = [tok.decode(t) for t in ids]
+    return {
+        "text": query_text,
+        "token_ids": ids,
+        "token_strs": token_strs,
+    }
 
 
 # ─── Health Check ──────────────────────────────────────────────
