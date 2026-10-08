@@ -18,7 +18,7 @@ def serve_command(args):
         sys.path.insert(0, str(root))
         
     print("=" * 60)
-    print(f"  🔮 GlassBox Visualizer Server")
+    print(f"  🔮 Visual Box Visualizer Server")
     print(f"  Serving at: http://{args.host}:{args.port}")
     print("  Made with 🔮 by Vivi")
     print("=" * 60)
@@ -35,7 +35,7 @@ def serve_command(args):
 def main():
     parser = argparse.ArgumentParser(
         prog="glassbox",
-        description="GlassBox 🔮 — See inside the model",
+        description="Visual Box 🔮 — See inside the model",
     )
     subparsers = parser.add_subparsers(dest="command", help="Sub-commands")
     

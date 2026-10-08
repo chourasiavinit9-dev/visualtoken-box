@@ -37,6 +37,11 @@
     let originalPrompt = '';
     let originalMaxTokens = maxTokensInput.value;
     let runPrompt = '';
+    let runQuestion = '';
+
+    // ── Initialize new feature modules ──────────────────────────────
+    Steering.init();
+    Rollout.init();
     
     const imageUpload = document.getElementById('image-upload');
     const imageFilename = document.getElementById('image-filename');
@@ -85,7 +90,7 @@
 
         const label = document.createElement('div');
         label.className = 'chat-bubble-label';
-        label.textContent = role === 'user' ? 'You' : 'GlassBox';
+        label.textContent = role === 'user' ? 'You' : 'Visual Box';
 
         const body = document.createElement('div');
         body.className = 'chat-bubble-body';
@@ -157,6 +162,15 @@
             attnHeadSel.appendChild(o);
         }
         attnLayerSel.value = Math.floor(config.num_layers / 2);
+        _updateHeadBadge();
+    }
+
+    function _updateHeadBadge() {
+        const badge = document.getElementById('head-type-badge');
+        if (!badge || !config) return;
+        const l = parseInt(attnLayerSel.value);
+        const h = parseInt(attnHeadSel.value);
+        badge.innerHTML = HeadDetector.getBadgeHTML(l, h);
     }
 
     function updateAttention() {
@@ -317,6 +331,7 @@
 
         socket.onopen = () => {
             setStatus('active', 'generating…');
+            const steeringParams = Steering.getParams();
             socket.send(JSON.stringify({
                 prompt: runPrompt,
                 max_new_tokens: parseInt(maxTokensInput.value),
@@ -327,6 +342,7 @@
                 trace: true,
                 engine: document.getElementById('engine-select').value,
                 image_b64: attachedImageB64,
+                ...steeringParams,
             }));
         };
 
@@ -337,6 +353,10 @@
                 promptTokens = msg.prompt_token_strs;
                 populateSelectors();
                 renderTokenStream();
+                // 🖼️ Pictograph: render prompt tokens immediately
+                if (promptTokens.length > 0) {
+                    TokenPictograph.render(runQuestion || runPrompt, promptTokens, []);
+                }
             } else if (msg.type === 'step') {
                 steps.push(msg);
                 genTokens.push(msg.token_str);
@@ -363,6 +383,15 @@
                 setStatus('done', `done · ${msg.total_steps} tokens`);
                 generateBtn.disabled = false;
                 if (activeBubbleBody) activeBubbleBody.classList.remove('streaming');
+                // 🌊 Rollout: compute & load after all steps collected
+                Rollout.setData(allAttentionData, promptTokens, genTokens);
+                // 🏷️ Head Detection: run heuristics now that we have all attention data
+                if (config) {
+                    HeadDetector.detect(allAttentionData, config.num_layers, config.num_heads);
+                    _updateHeadBadge();
+                }
+                // 🖼️ Pictograph: update with generated tokens
+                TokenPictograph.render(runQuestion || runPrompt, promptTokens, genTokens);
                 selectHighestEntropyStep();
             }
         };
@@ -376,6 +405,7 @@
     generateBtn.addEventListener('click', () => {
         const q = promptInput.value.trim();
         if (!q) return;
+        runQuestion = q;
         startGeneration(q, { question: q });
     });
 
@@ -385,6 +415,7 @@
             const q = promptInput.value.trim();
             if (!q) return;
             const savedQ = q;
+            runQuestion = savedQ;
             promptInput.value = '';
             startGeneration(savedQ, { question: savedQ });
         });
@@ -417,8 +448,8 @@
         if (event.target === headGallery) headGallery.close();
     });
 
-    attnLayerSel.addEventListener('change', updateAttention);
-    attnHeadSel.addEventListener('change', updateAttention);
+    attnLayerSel.addEventListener('change', () => { updateAttention(); _updateHeadBadge(); });
+    attnHeadSel.addEventListener('change', () => { updateAttention(); _updateHeadBadge(); });
     attnAvgHeads.addEventListener('change', updateAttention);
     attnRowNorm.addEventListener('change', updateAttention);
     attnHideSink.addEventListener('change', updateAttention);

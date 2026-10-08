@@ -3,17 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GlassBox 🔮 — See Inside the Model</title>
+    <title>Visual Box 🔮 — See Inside the Model</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/features.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div id="landing" role="dialog" aria-label="GlassBox introduction">
+    <div id="landing" role="dialog" aria-label="Visual Box introduction">
   <div class="lp-inner">
     <div class="lp-kicker">OPEN-SOURCE AI · BUILT FROM SCRATCH</div>
-    <h1 class="lp-title">GlassBox</h1>
+    <h1 class="lp-title">Visual Box</h1>
     <p class="lp-tag">See inside the model.</p>
     <p class="lp-pitch">A small language model rebuilt in pure NumPy. Watch it read, attend and decide, one token at a time.</p>
     <div id="lp-grid" aria-hidden="true"></div>
@@ -24,14 +25,14 @@
       <div class="lp-card"><b>8.4e-5</b><span>max logit diff vs PyTorch</span></div>
       <div class="lp-card"><b>25 / 25</b><span>greedy tokens identical</span></div>
     </div>
-    <button id="lp-launch" class="lp-btn">Launch GlassBox →</button>
+    <button id="lp-launch" class="lp-btn">Launch Visual Box →</button>
     <p class="lp-foot">SmolLM2-135M · pure NumPy, no PyTorch at runtime · numbers from my test suite on a few prompts · made by Vivi</p>
   </div>
 </div>
     <header class="topbar">
         <div class="brand">
             <span class="brand-mark">◇</span>
-            <span class="brand-text">GlassBox</span>
+            <span class="brand-text">Visual Box</span>
             <span class="brand-sub">see inside the model</span>
         </div>
         <div class="status">
@@ -62,7 +63,8 @@
                 <label>engine
                     <select id="engine-select">
                         <option value="glassbox">SmolLM2-135M (NumPy)</option>
-                        <option value="gemma">Gemma 2 2B (PyTorch)</option>
+                        <option value="hf">Any HF Model (PyTorch)</option>
+                        <option value="gemma">Gemma 2 2B (legacy)</option>
                     </select>
                 </label>
                 <label>max tokens
@@ -72,6 +74,24 @@
                     <input type="checkbox" id="use-cache" checked>
                     <span>KV cache</span>
                 </label>
+            </div>
+
+            <!-- 🎛️ Feature 1: Activation Steering Panel -->
+            <div class="steering-panel">
+                <div class="panel-header" style="margin-bottom:6px;">
+                    <span class="steering-title">🎛️ MODEL STEERING</span>
+                    <span id="steering-active-badge" class="steering-active-badge"></span>
+                </div>
+                <div id="steering-presets" class="steering-presets"></div>
+                <div class="steering-slider-row">
+                    <span class="steering-slider-label">strength</span>
+                    <input type="range" id="steering-slider" min="-5" max="5" step="0.1" value="0">
+                    <span id="steering-val" class="steering-val">+0.0</span>
+                </div>
+                <div class="steering-custom-row">
+                    <input type="text" id="steering-custom-input" placeholder="custom concept (press Enter)…">
+                    <button class="steering-reset" id="steering-reset" title="Reset steering">✕ reset</button>
+                </div>
             </div>
 
             <!-- Attach image + visualize button row -->
@@ -96,6 +116,14 @@
             <div id="token-stream" class="token-stream"></div>
             <div class="stream-legend">chip color = how surprised the model was by its own pick.</div>
 
+            <!-- 🖼️ Feature 4: Tokenization Pictograph -->
+            <div class="token-pictograph-panel">
+                <div class="panel-header">🖼️ tokenization diagram</div>
+                <div id="pictograph-stage" class="pictograph-stage">
+                    <div style="font-size:0.72rem;color:var(--text-muted);padding:4px 0;">Run a generation to see the token breakdown ↓</div>
+                </div>
+            </div>
+
             <div class="metrics-row">
                 <div class="metric"><span class="metric-label">tok/s</span><span id="metric-speed" class="metric-value">—</span></div>
                 <div class="metric"><span class="metric-label">tokens</span><span id="metric-count" class="metric-value">—</span></div>
@@ -107,7 +135,22 @@
         <section class="panel panel-center">
             <div class="panel-header flex-between">
                 <span>attention matrix</span>
-                <span class="caption-text">attention-weighted view: where it looked, not proof of why it answered.</span>
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <!-- 🌊 Feature 2: Rollout button -->
+                    <button id="rollout-btn" class="rollout-btn" title="Show cross-layer token influence (Attention Rollout)">🌊 why matrix</button>
+                    <span class="caption-text">where it looked → why it answered</span>
+                </div>
+            </div>
+
+            <!-- Rollout panel -->
+            <div id="rollout-panel" class="rollout-panel">
+                <div class="rollout-title">🌊 ATTENTION ROLLOUT — click a generated token to see which prompt tokens caused it</div>
+                <div style="margin-top:6px;font-size:0.7rem;color:var(--text-muted);">Generated tokens (click one):</div>
+                <div id="rollout-gen-tokens" class="rollout-tokens" style="margin-top:4px;"></div>
+                <div style="margin-top:8px;font-size:0.7rem;color:var(--text-muted);">Prompt influence:</div>
+                <div id="rollout-prompt-tokens" class="rollout-tokens" style="margin-top:4px;">
+                    <span style="font-size:0.7rem;color:var(--text-muted);">← click a generated token above</span>
+                </div>
             </div>
             
             <div class="attn-controls">
@@ -116,6 +159,7 @@
                 </label>
                 <label>head
                     <select id="attn-head"></select>
+                    <span id="head-type-badge"></span>  <!-- 🏷️ Feature 3: badge -->
                 </label>
                 <label class="toggle">
                     <input type="checkbox" id="attn-avg-heads">
@@ -215,6 +259,7 @@
 <script src="/static/heatmap.js"></script>
 <script src="/static/probs.js"></script>
 <script src="/static/lens.js"></script>
+<script src="/static/features.js"></script>
 <script src="/static/app.js"></script>
 <script src="/static/landing.js"></script>
 </body>

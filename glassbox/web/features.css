@@ -1,0 +1,253 @@
+/* ─── GlassBox Features: Activation Steering + Rollout + Head Badges + Token Pictograph ─── */
+/* Made with 🔮 by Vinit Chaurasia */
+
+/* ════════════════════════════════════════════════════════════════
+   FEATURE 1: Activation Steering Panel
+   ════════════════════════════════════════════════════════════════ */
+.steering-panel {
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.12), rgba(79, 70, 229, 0.08));
+    border: 1px solid rgba(124, 58, 237, 0.4);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-top: 8px;
+}
+.steering-panel .panel-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px;
+}
+.steering-title { font-size: 0.78rem; font-weight: 600; color: #a78bfa; letter-spacing: 0.06em; }
+.steering-active-badge {
+    font-size: 0.68rem; font-weight: 700; color: #fff;
+    background: linear-gradient(90deg, #7c3aed, #4f46e5);
+    padding: 2px 8px; border-radius: 20px;
+    display: none;
+}
+.steering-active-badge.visible { display: inline; }
+
+.steering-presets {
+    display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px;
+}
+.preset-btn {
+    font-size: 0.72rem; padding: 3px 9px;
+    border: 1px solid rgba(124, 58, 237, 0.4);
+    border-radius: 16px; cursor: pointer;
+    background: rgba(124, 58, 237, 0.1);
+    color: var(--text-dim); transition: all 0.18s ease;
+    font-family: var(--font-ui);
+}
+.preset-btn:hover { background: rgba(124, 58, 237, 0.3); color: #fff; border-color: #7c3aed; }
+.preset-btn.active {
+    background: linear-gradient(90deg, #7c3aed, #4f46e5);
+    color: #fff; border-color: transparent;
+    box-shadow: 0 0 12px rgba(124, 58, 237, 0.5);
+}
+.steering-slider-row {
+    display: flex; align-items: center; gap: 10px; margin-top: 6px;
+}
+.steering-slider-label { font-size: 0.72rem; color: var(--text-muted); min-width: 38px; }
+#steering-slider {
+    flex: 1; -webkit-appearance: none; height: 4px;
+    border-radius: 4px; outline: none; cursor: pointer;
+    background: linear-gradient(to right, #4f46e5, #090a0f 50%, #7c3aed);
+}
+#steering-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px;
+    border-radius: 50%; cursor: pointer;
+    background: linear-gradient(135deg, #a78bfa, #7c3aed);
+    box-shadow: 0 0 8px rgba(124, 58, 237, 0.8);
+}
+.steering-val { font-size: 0.78rem; font-family: var(--font-mono); color: #a78bfa; min-width: 32px; text-align: right; }
+.steering-custom-row {
+    display: flex; gap: 6px; margin-top: 8px; align-items: center;
+}
+#steering-custom-input {
+    flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 0.75rem;
+    padding: 4px 8px; font-family: var(--font-mono); outline: none;
+}
+#steering-custom-input:focus { border-color: #7c3aed; box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2); }
+.steering-reset { font-size: 0.72rem; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 2px 6px; }
+.steering-reset:hover { color: #ff6b6b; }
+
+/* ════════════════════════════════════════════════════════════════
+   FEATURE 2: Attention Rollout ("The Why Matrix")
+   ════════════════════════════════════════════════════════════════ */
+.rollout-btn {
+    font-size: 0.72rem; padding: 3px 10px; border-radius: 6px;
+    border: 1px solid rgba(82, 207, 102, 0.4);
+    background: rgba(82, 207, 102, 0.08);
+    color: #51cf66; cursor: pointer; transition: all 0.18s;
+    font-family: var(--font-ui);
+}
+.rollout-btn:hover, .rollout-btn.active {
+    background: rgba(82, 207, 102, 0.2);
+    box-shadow: 0 0 10px rgba(82, 207, 102, 0.3);
+}
+.rollout-panel {
+    margin-top: 8px; padding: 8px 10px;
+    background: rgba(82, 207, 102, 0.05);
+    border: 1px solid rgba(82, 207, 102, 0.2);
+    border-radius: 8px; display: none;
+}
+.rollout-panel.visible { display: block; }
+.rollout-title { font-size: 0.72rem; color: #51cf66; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.05em; }
+.rollout-tokens {
+    display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
+}
+.rollout-token {
+    font-size: 0.72rem; padding: 2px 6px; border-radius: 4px;
+    font-family: var(--font-mono);
+    background: rgba(255,255,255,0.06);
+    color: var(--text-dim);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+    cursor: default;
+}
+.rollout-token.highlight {
+    background: rgba(82, 207, 102, var(--rollout-alpha, 0.15));
+    color: #fff;
+    border-color: rgba(82, 207, 102, var(--rollout-alpha, 0.4));
+    box-shadow: 0 0 8px rgba(82, 207, 102, calc(var(--rollout-alpha, 0.1) * 0.8));
+}
+
+/* Rollout highlight on generated token chips */
+.chip.rollout-target {
+    outline: 2px solid #51cf66;
+    outline-offset: 1px;
+    background: rgba(82, 207, 102, 0.18) !important;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FEATURE 3: Head Type Badges
+   ════════════════════════════════════════════════════════════════ */
+.head-badge {
+    display: inline-block; font-size: 0.58rem; font-weight: 700;
+    padding: 1px 5px; border-radius: 3px; margin-left: 4px;
+    text-transform: uppercase; letter-spacing: 0.05em; vertical-align: middle;
+}
+.head-badge-induction   { background: rgba(252, 196, 25, 0.15); color: #fcc419; border: 1px solid rgba(252, 196, 25, 0.4); }
+.head-badge-prev        { background: rgba(82, 207, 102, 0.12); color: #51cf66; border: 1px solid rgba(82, 207, 102, 0.3); }
+.head-badge-bos         { background: rgba(122, 162, 255, 0.12); color: #7aa2ff; border: 1px solid rgba(122, 162, 255, 0.3); }
+.head-badge-broad       { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
+
+/* Gallery item head badge overlay */
+.head-gallery-item { position: relative; }
+.head-gallery-badge {
+    position: absolute; top: 4px; right: 4px;
+    font-size: 0.55rem; font-weight: 700;
+    padding: 1px 4px; border-radius: 3px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    pointer-events: none;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FEATURE 4: Tokenization Pictograph
+   ════════════════════════════════════════════════════════════════ */
+.token-pictograph-panel {
+    background: rgba(17, 20, 31, 0.9);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-top: 6px;
+    overflow: hidden;
+}
+.token-pictograph-panel .panel-header { margin-bottom: 8px; }
+.pictograph-stage {
+    display: flex; flex-direction: column; gap: 6px;
+}
+.pictograph-row {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    min-height: 28px;
+}
+.pictograph-row-label {
+    font-size: 0.68rem; color: var(--text-muted);
+    font-family: var(--font-mono); min-width: 68px;
+    text-align: right; flex-shrink: 0;
+}
+.pictograph-arrow {
+    font-size: 0.9rem; color: var(--text-muted); flex-shrink: 0;
+    margin: 0 2px;
+}
+
+/* Word-level blocks */
+.pic-word {
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 0.73rem;
+    padding: 3px 8px; border-radius: 6px;
+    background: rgba(122, 162, 255, 0.1);
+    border: 1px solid rgba(122, 162, 255, 0.3);
+    color: #a3c2ff;
+    transition: all 0.2s;
+}
+
+/* Token-level blocks */
+.pic-token {
+    display: inline-flex; flex-direction: column; align-items: center;
+    font-family: var(--font-mono); font-size: 0.68rem;
+    padding: 3px 6px; border-radius: 6px;
+    min-width: 28px;
+    transition: all 0.25s ease;
+    cursor: default; position: relative;
+}
+.pic-token-text {
+    font-size: 0.75rem; font-weight: 500; padding: 2px 6px;
+    border-radius: 5px; border: 1px solid;
+    text-align: center;
+}
+.pic-token-id {
+    font-size: 0.6rem; color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Color palette for tokens — cycles through colors */
+.tc-0  { border-color: rgba(122,162,255,0.5); background: rgba(122,162,255,0.12); color: #a3c2ff; }
+.tc-1  { border-color: rgba(252,196,25,0.5);  background: rgba(252,196,25,0.12);  color: #fcd34d; }
+.tc-2  { border-color: rgba(82,207,102,0.5);  background: rgba(82,207,102,0.12);  color: #6ee7b7; }
+.tc-3  { border-color: rgba(251,113,133,0.5); background: rgba(251,113,133,0.12); color: #fda4af; }
+.tc-4  { border-color: rgba(167,139,250,0.5); background: rgba(167,139,250,0.12); color: #c4b5fd; }
+.tc-5  { border-color: rgba(251,191,36,0.5);  background: rgba(251,191,36,0.12);  color: #fde68a; }
+.tc-6  { border-color: rgba(56,189,248,0.5);  background: rgba(56,189,248,0.12);  color: #7dd3fc; }
+.tc-7  { border-color: rgba(244,114,182,0.5); background: rgba(244,114,182,0.12); color: #f9a8d4; }
+
+/* Connector lines between word and tokens */
+.pic-connector { width: 100%; display: flex; justify-content: center; position: relative; }
+.pic-connector::after {
+    content: ''; position: absolute; top: 0; left: 10%; right: 10%;
+    height: 1px; background: var(--border);
+}
+
+/* Attention weight indicator inside rollout */
+.rollout-weight-bar {
+    display: inline-block; height: 3px; border-radius: 2px;
+    background: linear-gradient(to right, #51cf66, #7aa2ff);
+    margin-top: 2px; width: 100%; transition: width 0.3s;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Global Feature Tab Strip
+   ════════════════════════════════════════════════════════════════ */
+.feature-tabs {
+    display: flex; gap: 0; margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+}
+.feature-tab {
+    font-size: 0.72rem; padding: 5px 12px;
+    border: none; border-bottom: 2px solid transparent;
+    background: none; color: var(--text-muted); cursor: pointer;
+    white-space: nowrap; font-family: var(--font-ui);
+    transition: all 0.15s;
+}
+.feature-tab:hover { color: var(--text); }
+.feature-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Pane visibility */
+.feature-pane { display: none; }
+.feature-pane.active { display: block; }
+
+/* Animated glow on selected output word */
+@keyframes rollout-glow {
+    0%, 100% { box-shadow: 0 0 6px rgba(82,207,102,0.4); }
+    50% { box-shadow: 0 0 14px rgba(82,207,102,0.8); }
+}
+.chip.rollout-target { animation: rollout-glow 1.5s ease-in-out infinite; }

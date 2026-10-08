@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  🔮 GlassBox Instrument Panel Visualizer")
+    print("  🔮 Visual Box Instrument Panel Visualizer")
     print("  Serving at: http://localhost:8000")
     print("  Made with 🔮 by Vivi")
     print("=" * 60)
