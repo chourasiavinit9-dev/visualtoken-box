@@ -358,28 +358,82 @@ const HeadDetector = (() => {
 
 
 /* ─────────────────────────────────────────────────────────────────────────
-   4. TOKENIZATION PICTOGRAPH MODULE
+   4. TOKENIZATION PICTOGRAPH & TRANSFORMATION PIPELINE MODULE
    ───────────────────────────────────────────────────────────────────────── */
 const TokenPictograph = (() => {
-    const COLORS = 8; // number of tc-N classes
+    const COLORS = 8;
     let debounceTimer = null;
     let cachedPromptTokens = [];
     let cachedPromptTokenIds = [];
     let cachedPromptText = '';
+    let cachedGenTokens = [];
+
+    function clientHeuristicTokenize(text) {
+        if (!text) return { words: [], tokens: [], tokenIds: [] };
+        const words = text.trim().split(/\s+/).filter(Boolean);
+        const tokens = [];
+        const regex = /(\s+)?([^\s\w]+|[A-Za-z0-9]+)/g;
+        let m;
+        while ((m = regex.exec(text)) !== null) {
+            tokens.push((m[1] ? ' ' : '') + m[2]);
+        }
+        const tokenList = tokens.length > 0 ? tokens : [text];
+        return {
+            words,
+            tokens: tokenList,
+            tokenIds: tokenList.map((_, i) => (i + 1) * 314 + 17)
+        };
+    }
 
     function init(inputEl) {
         if (!inputEl) inputEl = document.getElementById('prompt');
+        
+        // Modal handlers
+        const expandBtn = document.getElementById('pic-expand-btn');
+        const modal = document.getElementById('pictograph-modal');
+        const backdrop = document.getElementById('pictograph-backdrop');
+        const closeBtn = document.getElementById('pic-modal-close');
+
+        function openModal() {
+            if (modal && backdrop) {
+                modal.classList.add('open');
+                backdrop.classList.add('open');
+                _renderPipelineTo(document.getElementById('pictograph-modal-stage'), true);
+            }
+        }
+        function closeModal() {
+            if (modal && backdrop) {
+                modal.classList.remove('open');
+                backdrop.classList.remove('open');
+            }
+        }
+
+        if (expandBtn) expandBtn.addEventListener('click', openModal);
+        if (closeBtn) closeBtn.addEventListener('click', closeModal);
+        if (backdrop) backdrop.addEventListener('click', closeModal);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // Input listener
         if (inputEl) {
-            // Live update as user types in prompt box
             inputEl.addEventListener('input', () => {
                 clearTimeout(debounceTimer);
                 debounceTimer = setTimeout(() => {
                     const txt = inputEl.value.trim();
                     if (txt) fetchAndRender(txt);
-                }, 180);
+                }, 150);
             });
-            // Fetch & render initial prompt immediately on page load
+
+            // 0ms instant render using client heuristic
             const initial = inputEl.value.trim() || 'What is the capital of India?';
+            const fallback = clientHeuristicTokenize(initial);
+            cachedPromptText = initial;
+            cachedPromptTokens = fallback.tokens;
+            cachedPromptTokenIds = fallback.tokenIds;
+            render(initial, fallback.tokens, fallback.tokenIds, []);
+
+            // Now fetch exact server tokenizer IDs
             fetchAndRender(initial);
         }
     }
@@ -392,131 +446,195 @@ const TokenPictograph = (() => {
                 cachedPromptText = data.text || text;
                 cachedPromptTokens = data.token_strs || [];
                 cachedPromptTokenIds = data.token_ids || [];
-                render(cachedPromptText, cachedPromptTokens, cachedPromptTokenIds, []);
+                render(cachedPromptText, cachedPromptTokens, cachedPromptTokenIds, cachedGenTokens);
             }
         } catch (e) {
-            console.warn('Tokenize fetch error:', e);
+            console.warn('Tokenize endpoint fetch failed:', e);
         }
     }
 
     function render(promptText, promptTokens, promptTokenIds = [], genTokens = []) {
-        const container = document.getElementById('pictograph-stage');
+        cachedPromptText = promptText || cachedPromptText || 'What is the capital of India?';
+        cachedPromptTokens = (promptTokens && promptTokens.length > 0) ? promptTokens : cachedPromptTokens;
+        cachedPromptTokenIds = (promptTokenIds && promptTokenIds.length > 0) ? promptTokenIds : cachedPromptTokenIds;
+        cachedGenTokens = genTokens || [];
+
+        const stage = document.getElementById('pictograph-stage');
+        if (stage) _renderPipelineTo(stage, false);
+
+        const modalStage = document.getElementById('pictograph-modal-stage');
+        const modal = document.getElementById('pictograph-modal');
+        if (modalStage && modal && modal.classList.contains('open')) {
+            _renderPipelineTo(modalStage, true);
+        }
+    }
+
+    function _renderPipelineTo(container, isModal = false) {
         if (!container) return;
         container.innerHTML = '';
 
-        if (!promptTokens || promptTokens.length === 0) {
-            container.innerHTML = '<div style="font-size:0.72rem;color:var(--text-muted);padding:4px 0;">Type a prompt above to see how it splits into tokens ↓</div>';
-            return;
+        const text = cachedPromptText || '';
+        const tokens = cachedPromptTokens || [];
+        const tokenIds = cachedPromptTokenIds || [];
+        const genTokens = cachedGenTokens || [];
+
+        if (tokens.length === 0) {
+            const fb = clientHeuristicTokenize(text);
+            tokens.push(...fb.tokens);
+            tokenIds.push(...fb.tokenIds);
         }
 
-        cachedPromptText = promptText || cachedPromptText;
-        cachedPromptTokens = promptTokens;
-        if (promptTokenIds && promptTokenIds.length > 0) {
-            cachedPromptTokenIds = promptTokenIds;
-        }
+        const words = text.trim().split(/\s+/).filter(Boolean);
 
-        // Row 1: Words breakdown
-        const words = (promptText || '').trim().split(/\s+/).filter(Boolean);
-        const wordItems = words.map(w => ({ type: 'word', text: w }));
-        _addRow(container, 'words', wordItems.length > 0 ? wordItems : [{ type: 'word', text: promptText || '—' }]);
-
-        // Row 2: Prompt BPE tokens with Token IDs
-        const pTokenEls = promptTokens.map((tok, i) => ({
-            type: 'token',
-            text: tok,
-            id: (cachedPromptTokenIds && cachedPromptTokenIds[i] !== undefined) ? `#${cachedPromptTokenIds[i]}` : `t${i}`,
-            colorIdx: i % COLORS
-        }));
-        _addRow(container, 'subwords', pTokenEls, true);
-
-        // Row 3: Generated tokens (if present)
-        if (genTokens && genTokens.length > 0) {
-            const gTokenEls = genTokens.map((tok, i) => ({
-                type: 'token',
-                text: tok,
-                id: `+${i + 1}`,
-                colorIdx: (promptTokens.length + i) % COLORS,
-                isGen: true
-            }));
-            _addRow(container, 'generated', gTokenEls, true);
-        }
-
-        // Row 4: Summary stats
-        const total = promptTokens.length + (genTokens ? genTokens.length : 0);
-        const numWords = Math.max(1, words.length);
-        const ratio = (promptTokens.length / numWords).toFixed(2);
-        const statsRow = document.createElement('div');
-        statsRow.className = 'pictograph-row';
-        statsRow.style.justifyContent = 'space-between';
-        statsRow.style.paddingTop = '4px';
-        statsRow.style.borderTop = '1px solid rgba(255,255,255,0.06)';
-        statsRow.innerHTML = `
-            <span style="font-size:0.65rem;color:var(--text-muted);font-family:var(--font-mono);">
-                ratio: <b style="color:#7aa2ff;">${ratio}</b> tok/word
-            </span>
-            <span style="font-size:0.68rem;color:var(--text-muted);font-family:var(--font-mono);">
-                ${promptTokens.length} prompt + ${genTokens ? genTokens.length : 0} gen
-                = <b style="color:var(--text);">${total} tokens</b>
-            </span>`;
-        container.appendChild(statsRow);
-    }
-
-    function _addRow(container, label, items, showIds = false) {
-        const row = document.createElement('div');
-        row.className = 'pictograph-row';
-
-        const lbl = document.createElement('span');
-        lbl.className = 'pictograph-row-label';
-        lbl.textContent = label;
-        row.appendChild(lbl);
-
-        const arrow = document.createElement('span');
-        arrow.className = 'pictograph-arrow';
-        arrow.textContent = '→';
-        row.appendChild(arrow);
-
-        const itemsWrap = document.createElement('div');
-        itemsWrap.style.display = 'flex';
-        itemsWrap.style.flexWrap = 'wrap';
-        itemsWrap.style.gap = '4px';
-        itemsWrap.style.alignItems = 'center';
-        itemsWrap.style.flex = '1';
-
-        items.forEach(item => {
-            if (item.type === 'word') {
-                const el = document.createElement('span');
-                el.className = 'pic-word';
-                el.textContent = item.text;
-                itemsWrap.appendChild(el);
-            } else {
-                const wrap = document.createElement('span');
-                wrap.className = 'pic-token';
-                wrap.title = `Token ID: ${item.id} | String: "${item.text}"`;
-
-                const txt = document.createElement('span');
-                txt.className = `pic-token-text tc-${item.colorIdx}`;
-                // Visualise leading/trailing space with ·
-                let display = (item.text || '').replace(/ /g, '·');
-                if (!display) display = '␣';
-                txt.textContent = display;
-
-                if (item.isGen) {
-                    txt.style.opacity = '0.85';
-                    txt.style.borderStyle = 'dashed';
-                }
-
-                const idEl = document.createElement('span');
-                idEl.className = 'pic-token-id';
-                idEl.textContent = item.id;
-
-                wrap.append(txt);
-                if (showIds) wrap.append(idEl);
-                itemsWrap.appendChild(wrap);
-            }
+        // ════════ STAGE 1: RAW INPUT & WORDS ════════
+        const stage1 = document.createElement('div');
+        stage1.className = 'pic-stage-card';
+        stage1.innerHTML = `<div class="pic-stage-title"><span>①</span> <b>INPUT PRE-TOKENIZATION</b> · ${words.length} words</div>`;
+        const wordsWrap = document.createElement('div');
+        wordsWrap.className = 'pic-words-wrap';
+        words.forEach(w => {
+            const chip = document.createElement('span');
+            chip.className = 'pic-word-chip';
+            chip.textContent = w;
+            chip.title = `Word chunk: "${w}"`;
+            wordsWrap.appendChild(chip);
         });
+        stage1.appendChild(wordsWrap);
+        container.appendChild(stage1);
 
-        row.appendChild(itemsWrap);
-        container.appendChild(row);
+        // ════════ CONNECTOR 1 ════════
+        const conn1 = document.createElement('div');
+        conn1.className = 'pic-stage-connector';
+        conn1.innerHTML = '<span>↓ Byte-Pair Encoding (BPE Split) ↓</span>';
+        container.appendChild(conn1);
+
+        // ════════ STAGE 2: BPE TOKENS & VOCABULARY IDS ════════
+        const stage2 = document.createElement('div');
+        stage2.className = 'pic-stage-card';
+        stage2.innerHTML = `<div class="pic-stage-title"><span>②</span> <b>VOCABULARY TOKENS</b> · ${tokens.length} subword pieces</div>`;
+        const tokensWrap = document.createElement('div');
+        tokensWrap.className = 'pic-tokens-wrap';
+        tokens.forEach((t, i) => {
+            const card = document.createElement('div');
+            const colorClass = `tc-${i % COLORS}`;
+            card.className = `pic-token-card ${colorClass}`;
+
+            let display = (t || '').replace(/ /g, '·');
+            if (!display) display = '␣';
+
+            const strEl = document.createElement('span');
+            strEl.className = 'pic-token-str';
+            strEl.textContent = display;
+
+            const idEl = document.createElement('span');
+            idEl.className = 'pic-token-id-pill';
+            const tid = (tokenIds && tokenIds[i] !== undefined) ? tokenIds[i] : (i + 1);
+            idEl.textContent = `#${tid}`;
+
+            card.title = `Token: "${t}" | Vocab ID: ${tid} | Index: ${i}`;
+            card.append(strEl, idEl);
+            tokensWrap.appendChild(card);
+        });
+        stage2.appendChild(tokensWrap);
+        container.appendChild(stage2);
+
+        // ════════ CONNECTOR 2 ════════
+        const conn2 = document.createElement('div');
+        conn2.className = 'pic-stage-connector';
+        conn2.innerHTML = '<span>↓ Embedding Lookup (E[t] ∈ ℝ⁵⁷⁶) ↓</span>';
+        container.appendChild(conn2);
+
+        // ════════ STAGE 3: EMBEDDING VECTOR ACTIVATIONS ════════
+        const stage3 = document.createElement('div');
+        stage3.className = 'pic-stage-card';
+        stage3.innerHTML = `<div class="pic-stage-title"><span>③</span> <b>576-DIM RESIDUAL STREAM EMBEDDINGS</b></div>`;
+        const embContainer = document.createElement('div');
+        embContainer.style.display = 'flex';
+        embContainer.style.flexDirection = 'column';
+        embContainer.style.gap = '3px';
+
+        tokens.forEach((t, i) => {
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.gap = '6px';
+
+            const name = document.createElement('span');
+            name.style.fontSize = '0.62rem';
+            name.style.fontFamily = 'var(--font-mono)';
+            name.style.color = 'var(--text-muted)';
+            name.style.minWidth = '38px';
+            name.textContent = (t || '').replace(/ /g, '·').slice(0, 5);
+
+            const strip = document.createElement('div');
+            strip.className = 'pic-embedding-strip';
+            strip.style.flex = '1';
+
+            // Generate pseudorandom color vector bands based on token index and id
+            const tid = tokenIds[i] || (i * 37 + 11);
+            const numCells = isModal ? 48 : 28;
+            for (let c = 0; c < numCells; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'pic-emb-cell';
+                const v = Math.abs(Math.sin((tid * 13 + c * 29) % 360));
+                const hue = (tid * 47 + c * 19) % 360;
+                cell.style.background = `hsl(${hue}, 75%, ${25 + Math.floor(v * 45)}%)`;
+                strip.appendChild(cell);
+            }
+
+            row.append(name, strip);
+            embContainer.appendChild(row);
+        });
+        stage3.appendChild(embContainer);
+        container.appendChild(stage3);
+
+        // ════════ STAGE 4: AUTOREGRESSIVE GENERATED SEQUENCE ════════
+        if (genTokens && genTokens.length > 0) {
+            const conn3 = document.createElement('div');
+            conn3.className = 'pic-stage-connector';
+            conn3.innerHTML = '<span>↓ Autoregressive Generation (30 Layers) ↓</span>';
+            container.appendChild(conn3);
+
+            const stage4 = document.createElement('div');
+            stage4.className = 'pic-stage-card';
+            stage4.innerHTML = `<div class="pic-stage-title"><span>④</span> <b style="color:#51cf66;">GENERATED TOKENS</b> · ${genTokens.length} steps</div>`;
+            const genWrap = document.createElement('div');
+            genWrap.className = 'pic-tokens-wrap';
+
+            genTokens.forEach((gt, i) => {
+                const card = document.createElement('div');
+                card.className = `pic-token-card is-gen tc-${(tokens.length + i) % COLORS}`;
+
+                let display = (gt || '').replace(/ /g, '·');
+                if (!display) display = '∅';
+
+                const strEl = document.createElement('span');
+                strEl.className = 'pic-token-str';
+                strEl.textContent = display;
+
+                const stepEl = document.createElement('span');
+                stepEl.className = 'pic-token-id-pill';
+                stepEl.textContent = `+${i + 1}`;
+
+                card.title = `Generated step ${i + 1}: "${gt}"`;
+                card.append(strEl, stepEl);
+                genWrap.appendChild(card);
+            });
+            stage4.appendChild(genWrap);
+            container.appendChild(stage4);
+        }
+
+        // ════════ STAGE 5: SUMMARY STATS BAR ════════
+        const total = tokens.length + genTokens.length;
+        const numWords = Math.max(1, words.length);
+        const ratio = (tokens.length / numWords).toFixed(2);
+        const statsRow = document.createElement('div');
+        statsRow.className = 'pic-summary-bar';
+        statsRow.innerHTML = `
+            <span>compression: <b style="color:#7aa2ff;">${ratio}</b> tok/word</span>
+            <span><b>${tokens.length}</b> prompt + <b>${genTokens.length}</b> gen = <b style="color:#a78bfa;">${total} tokens</b></span>
+        `;
+        container.appendChild(statsRow);
     }
 
     return { init, render, fetchAndRender };

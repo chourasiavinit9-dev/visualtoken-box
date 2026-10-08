@@ -118,10 +118,13 @@
 
             <!-- 🖼️ Feature 4: Tokenization Pictograph -->
             <div class="token-pictograph-panel">
-                <div class="panel-header">🖼️ tokenization diagram</div>
-                <div id="pictograph-stage" class="pictograph-stage">
-                    <div style="font-size:0.72rem;color:var(--text-muted);padding:4px 0;">Run a generation to see the token breakdown ↓</div>
+                <div class="panel-header">
+                    <span>🖼️ tokenization pipeline</span>
+                    <div class="pic-header-actions">
+                        <button id="pic-expand-btn" class="pic-btn-sm" type="button" title="Open full-size diagram">↗ expand</button>
+                    </div>
                 </div>
+                <div id="pictograph-stage" class="pictograph-stage"></div>
             </div>
 
             <div class="metrics-row">
@@ -251,16 +254,26 @@
         <div id="head-gallery-grid" class="head-gallery-grid"></div>
     </dialog>
 
+    <!-- Fullscreen Pictograph Modal -->
+    <div id="pictograph-backdrop" class="pictograph-backdrop"></div>
+    <div id="pictograph-modal" class="pictograph-modal">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px;">
+            <span style="font-weight:700;font-size:0.95rem;color:#7aa2ff;letter-spacing:0.05em;font-family:var(--font-mono);">🔮 TOKENIZATION & TRANSFORM PIPELINE DIAGRAM</span>
+            <button id="pic-modal-close" class="btn-quiet" type="button" style="font-size:1.2rem;cursor:pointer;padding:2px 8px;">✕</button>
+        </div>
+        <div id="pictograph-modal-stage" class="pictograph-stage"></div>
+    </div>
+
     <footer class="footer">
         made with 🔮 by vivi · pure numpy transformer engine · no pytorch runtime
     </footer>
 
-  <script src="/static/util.js"></script>
-<script src="/static/heatmap.js"></script>
-<script src="/static/probs.js"></script>
-<script src="/static/lens.js"></script>
-<script src="/static/features.js"></script>
-<script src="/static/app.js"></script>
-<script src="/static/landing.js"></script>
+  <script src="/static/util.js?v=20261008"></script>
+<script src="/static/heatmap.js?v=20261008"></script>
+<script src="/static/probs.js?v=20261008"></script>
+<script src="/static/lens.js?v=20261008"></script>
+<script src="/static/features.js?v=20261008"></script>
+<script src="/static/app.js?v=20261008"></script>
+<script src="/static/landing.js?v=20261008"></script>
 </body>
 </html>

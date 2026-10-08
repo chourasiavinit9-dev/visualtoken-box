@@ -143,84 +143,231 @@
 /* ════════════════════════════════════════════════════════════════
    FEATURE 4: Tokenization Pictograph
    ════════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════
+   FEATURE 4: Tokenization Pictograph & Transformation Pipeline
+   ════════════════════════════════════════════════════════════════ */
 .token-pictograph-panel {
-    background: rgba(17, 20, 31, 0.9);
-    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(20, 24, 41, 0.95) 0%, rgba(13, 16, 28, 0.98) 100%);
+    border: 1px solid rgba(122, 162, 255, 0.25);
     border-radius: 10px;
     padding: 10px 12px;
-    margin-top: 6px;
-    overflow: hidden;
+    margin-top: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
-.token-pictograph-panel .panel-header { margin-bottom: 8px; }
-.pictograph-stage {
-    display: flex; flex-direction: column; gap: 6px;
+.token-pictograph-panel .panel-header {
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 5px;
 }
-.pictograph-row {
-    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-    min-height: 28px;
+.pic-header-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
 }
-.pictograph-row-label {
-    font-size: 0.68rem; color: var(--text-muted);
-    font-family: var(--font-mono); min-width: 68px;
-    text-align: right; flex-shrink: 0;
+.pic-btn-sm {
+    font-size: 0.65rem;
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid rgba(122, 162, 255, 0.3);
+    background: rgba(122, 162, 255, 0.08);
+    color: #a3c2ff;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    transition: all 0.15s ease;
 }
-.pictograph-arrow {
-    font-size: 0.9rem; color: var(--text-muted); flex-shrink: 0;
-    margin: 0 2px;
+.pic-btn-sm:hover, .pic-btn-sm.active {
+    background: rgba(122, 162, 255, 0.25);
+    color: #fff;
+    border-color: #7aa2ff;
 }
 
-/* Word-level blocks */
-.pic-word {
-    display: inline-flex; align-items: center; justify-content: center;
-    font-family: var(--font-mono); font-size: 0.73rem;
-    padding: 3px 8px; border-radius: 6px;
-    background: rgba(122, 162, 255, 0.1);
-    border: 1px solid rgba(122, 162, 255, 0.3);
-    color: #a3c2ff;
+.pictograph-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Pipeline Stage Container */
+.pic-stage-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 7px;
+    padding: 6px 8px;
+    position: relative;
+}
+.pic-stage-title {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.pic-stage-title b {
+    color: #7aa2ff;
+}
+
+/* Downward connector between pipeline stages */
+.pic-stage-connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 2px 0;
+    color: rgba(122, 162, 255, 0.6);
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+}
+.pic-stage-connector::before,
+.pic-stage-connector::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(122, 162, 255, 0.3), transparent);
+}
+
+/* Stage 1: Words & Chunks */
+.pic-words-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+.pic-word-chip {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: rgba(122, 162, 255, 0.08);
+    border: 1px solid rgba(122, 162, 255, 0.25);
+    color: #c4d7ff;
     transition: all 0.2s;
 }
-
-/* Token-level blocks */
-.pic-token {
-    display: inline-flex; flex-direction: column; align-items: center;
-    font-family: var(--font-mono); font-size: 0.68rem;
-    padding: 3px 6px; border-radius: 6px;
-    min-width: 28px;
-    transition: all 0.25s ease;
-    cursor: default; position: relative;
-}
-.pic-token-text {
-    font-size: 0.75rem; font-weight: 500; padding: 2px 6px;
-    border-radius: 5px; border: 1px solid;
-    text-align: center;
-}
-.pic-token-id {
-    font-size: 0.6rem; color: var(--text-muted);
-    margin-top: 2px;
+.pic-word-chip:hover {
+    border-color: #7aa2ff;
+    background: rgba(122, 162, 255, 0.2);
+    color: #fff;
 }
 
-/* Color palette for tokens — cycles through colors */
-.tc-0  { border-color: rgba(122,162,255,0.5); background: rgba(122,162,255,0.12); color: #a3c2ff; }
-.tc-1  { border-color: rgba(252,196,25,0.5);  background: rgba(252,196,25,0.12);  color: #fcd34d; }
-.tc-2  { border-color: rgba(82,207,102,0.5);  background: rgba(82,207,102,0.12);  color: #6ee7b7; }
-.tc-3  { border-color: rgba(251,113,133,0.5); background: rgba(251,113,133,0.12); color: #fda4af; }
-.tc-4  { border-color: rgba(167,139,250,0.5); background: rgba(167,139,250,0.12); color: #c4b5fd; }
-.tc-5  { border-color: rgba(251,191,36,0.5);  background: rgba(251,191,36,0.12);  color: #fde68a; }
-.tc-6  { border-color: rgba(56,189,248,0.5);  background: rgba(56,189,248,0.12);  color: #7dd3fc; }
-.tc-7  { border-color: rgba(244,114,182,0.5); background: rgba(244,114,182,0.12); color: #f9a8d4; }
-
-/* Connector lines between word and tokens */
-.pic-connector { width: 100%; display: flex; justify-content: center; position: relative; }
-.pic-connector::after {
-    content: ''; position: absolute; top: 0; left: 10%; right: 10%;
-    height: 1px; background: var(--border);
+/* Stage 2: Tokens with IDs */
+.pic-tokens-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+}
+.pic-token-card {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    border-radius: 6px;
+    padding: 2px 5px;
+    border: 1px solid;
+    transition: all 0.2s ease;
+    cursor: default;
+    background: rgba(255, 255, 255, 0.03);
+}
+.pic-token-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+.pic-token-str {
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+.pic-token-id-pill {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    opacity: 0.8;
+    margin-top: 1px;
+    letter-spacing: 0.02em;
 }
 
-/* Attention weight indicator inside rollout */
-.rollout-weight-bar {
-    display: inline-block; height: 3px; border-radius: 2px;
-    background: linear-gradient(to right, #51cf66, #7aa2ff);
-    margin-top: 2px; width: 100%; transition: width 0.3s;
+/* Generated token styling */
+.pic-token-card.is-gen {
+    border-style: dashed !important;
+    background: rgba(82, 207, 102, 0.06);
+}
+
+/* Stage 3: Embedding Visualizer */
+.pic-embedding-strip {
+    display: flex;
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    gap: 1px;
+    margin-top: 4px;
+    background: rgba(0, 0, 0, 0.4);
+}
+.pic-emb-cell {
+    flex: 1;
+    height: 100%;
+    transition: opacity 0.2s;
+}
+
+/* Color cycles */
+.tc-0  { border-color: rgba(122,162,255,0.6); color: #a3c2ff; }
+.tc-1  { border-color: rgba(252,196,25,0.6);  color: #fcd34d; }
+.tc-2  { border-color: rgba(82,207,102,0.6);  color: #6ee7b7; }
+.tc-3  { border-color: rgba(251,113,133,0.6); color: #fda4af; }
+.tc-4  { border-color: rgba(167,139,250,0.6); color: #c4b5fd; }
+.tc-5  { border-color: rgba(251,191,36,0.6);  color: #fde68a; }
+.tc-6  { border-color: rgba(56,189,248,0.6);  color: #7dd3fc; }
+.tc-7  { border-color: rgba(244,114,182,0.6); color: #f9a8d4; }
+
+/* Stage 4: Summary bar */
+.pic-summary-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.pic-summary-bar b {
+    color: #fff;
+}
+
+/* Fullscreen Modal Dialog for Pictograph */
+.pictograph-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(900px, 94vw);
+    max-height: 85vh;
+    background: #0f121e;
+    border: 1px solid rgba(122, 162, 255, 0.4);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+    border-radius: 12px;
+    z-index: 9999;
+    padding: 20px;
+    overflow-y: auto;
+    display: none;
+}
+.pictograph-modal.open {
+    display: block;
+}
+.pictograph-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+    z-index: 9998;
+    display: none;
+}
+.pictograph-backdrop.open {
+    display: block;
 }
 
 /* ════════════════════════════════════════════════════════════════
