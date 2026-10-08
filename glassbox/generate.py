@@ -34,6 +34,7 @@ def generate_stream(
     top_p: float = 0.9,
     use_cache: bool = True,
     trace: bool = False,
+    stop_token_ids: set | None = None,
 ) -> Generator[GenerationStep, None, None]:
     """
     Generate text streaming one token at a time.
@@ -68,8 +69,10 @@ def generate_stream(
     )
     
     # Decoding phase (token-by-token loop)
+    _stop_ids = stop_token_ids or set()
+    _stop_ids.add(tokenizer.eos_token_id)
     for _ in range(max_new_tokens - 1):
-        if next_token == tokenizer.eos_token_id:
+        if next_token in _stop_ids:
             break
             
         step_start = time.perf_counter()

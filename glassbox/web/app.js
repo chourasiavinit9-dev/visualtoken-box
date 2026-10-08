@@ -37,6 +37,72 @@
     let originalPrompt = '';
     let originalMaxTokens = maxTokensInput.value;
     let runPrompt = '';
+    
+    const imageUpload = document.getElementById('image-upload');
+    const imageFilename = document.getElementById('image-filename');
+    let attachedImageB64 = null;
+
+    if (imageUpload) {
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) {
+                attachedImageB64 = null;
+                imageFilename.textContent = '';
+                return;
+            }
+            imageFilename.textContent = file.name;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                attachedImageB64 = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    const answerBox = document.getElementById('answer-box');
+    const answerText = document.getElementById('answer-text');
+    const chatHistory = document.getElementById('chat-history');
+
+    // ── Chat bubble helpers ──────────────────────────────────────────
+    let activeBubbleBody = null;
+
+    // Special tokens to strip from displayed answers
+    const STRIP_TOKENS = ['<end_of_turn>', '<|im_end|>', '<eos>', '</s>', '<|endoftext|>'];
+
+    function stripSpecialTokens(text) {
+        let out = text;
+        for (const tok of STRIP_TOKENS) out = out.split(tok).join('');
+        return out;
+    }
+
+    function addChatBubble(role, text = '') {
+        // Hide the placeholder hint on first bubble
+        const hint = document.getElementById('chat-empty-hint');
+        if (hint) hint.style.display = 'none';
+
+        const wrap = document.createElement('div');
+        wrap.className = `chat-bubble ${role}`;
+
+        const label = document.createElement('div');
+        label.className = 'chat-bubble-label';
+        label.textContent = role === 'user' ? 'You' : 'GlassBox';
+
+        const body = document.createElement('div');
+        body.className = 'chat-bubble-body';
+        body.textContent = text;
+
+        wrap.append(label, body);
+        chatHistory.appendChild(wrap);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+        return body;
+    }
+
+    function appendToBubble(body, token) {
+        // Accumulate and re-render stripped text so special tokens never flash
+        body._raw = (body._raw || '') + token;
+        body.textContent = stripSpecialTokens(body._raw);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
 
     function setStatus(state, text) {
         statusDot.className = `dot dot-${state}`;
@@ -219,18 +285,28 @@
         selectStep(maxIdx);
     }
 
-    function startGeneration(prompt, { branch = false, resetOriginal = true } = {}) {
+    function startGeneration(prompt, { branch = false, resetOriginal = true, question = null } = {}) {
         if (resetOriginal) {
             originalPrompt = prompt;
             originalMaxTokens = maxTokensInput.value;
         }
         runPrompt = prompt;
-        promptInput.value = prompt;
+        if (!branch) promptInput.value = prompt;
         branchBanner.hidden = !branch;
         if (ws) ws.close();
         steps = []; genTokens = []; allAttentionData = [];
         selectedStepIdx = -1;
         tokenStream.innerHTML = '';
+        if (answerText) answerText.textContent = '';
+        if (answerBox) answerBox.style.display = 'none';
+        activeBubbleBody = null;
+
+        // Create chat bubbles — question is the display text for the user bubble
+        if (question !== false && chatHistory) {
+            const displayQ = question || prompt;
+            addChatBubble('user', displayQ);
+            activeBubbleBody = addChatBubble('assistant', '');
+        }
 
         setStatus('active', 'connecting…');
         generateBtn.disabled = true;
@@ -249,6 +325,8 @@
                 top_p: parseFloat(document.getElementById('topp-slider').value),
                 use_cache: useCacheInput.checked,
                 trace: true,
+                engine: document.getElementById('engine-select').value,
+                image_b64: attachedImageB64,
             }));
         };
 
@@ -266,6 +344,15 @@
                 stepSlider.max = steps.length - 1;
                 stepSlider.value = steps.length - 1;
 
+                // Append token to live assistant bubble
+                if (activeBubbleBody) {
+                    appendToBubble(activeBubbleBody, msg.token_str || '');
+                    activeBubbleBody.classList.add('streaming');
+                }
+                // Also append to legacy answer panel if present
+                if (answerText) answerText.textContent += (msg.token_str || '');
+                if (answerBox) answerBox.style.display = 'block';
+
                 metricSpeed.textContent = (steps.reduce((a, s) => a + s.tokens_per_sec, 0) / steps.length).toFixed(1);
                 metricCount.textContent = steps.length;
                 metricCache.textContent = msg.cache_active ? 'on' : 'off';
@@ -275,6 +362,7 @@
             } else if (msg.type === 'done') {
                 setStatus('done', `done · ${msg.total_steps} tokens`);
                 generateBtn.disabled = false;
+                if (activeBubbleBody) activeBubbleBody.classList.remove('streaming');
                 selectHighestEntropyStep();
             }
         };
@@ -285,7 +373,22 @@
         };
     }
 
-    generateBtn.addEventListener('click', () => startGeneration(promptInput.value));
+    generateBtn.addEventListener('click', () => {
+        const q = promptInput.value.trim();
+        if (!q) return;
+        startGeneration(q, { question: q });
+    });
+
+    const askBtn = document.getElementById('ask-btn');
+    if (askBtn) {
+        askBtn.addEventListener('click', () => {
+            const q = promptInput.value.trim();
+            if (!q) return;
+            const savedQ = q;
+            promptInput.value = '';
+            startGeneration(savedQ, { question: savedQ });
+        });
+    }
 
     backToOriginalBtn.addEventListener('click', () => {
         if (!originalPrompt) return;

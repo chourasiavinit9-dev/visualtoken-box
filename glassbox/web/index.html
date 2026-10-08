@@ -41,27 +41,57 @@
     </header>
 
     <main class="grid">
-        <!-- LEFT: Prompt + Token Stream -->
+        <!-- LEFT: Chat Interface -->
         <section class="panel panel-left">
-            <div class="panel-header">prompt</div>
-            <textarea id="prompt" class="prompt-input" rows="2">Paris is in France. Rome is in</textarea>
-            
-            <div class="controls-row">
+            <!-- Chat history: Q&A bubbles appear here -->
+            <div id="chat-history">
+                <span class="empty-hint" id="chat-empty-hint">Ask a question below ↓</span>
+            </div>
+
+            <!-- Input row -->
+            <div style="display:flex; gap:6px; align-items:stretch; margin-bottom:6px;">
+                <textarea id="prompt" class="prompt-input"
+                    style="flex:1; min-width:0; min-height:48px; height:48px;"
+                    placeholder="Ask a question…">What is the capital of India?</textarea>
+                <button id="ask-btn" class="btn-primary" title="Send"
+                    style="width:44px; padding:0; font-size:1.2rem; flex-shrink:0; background:linear-gradient(135deg,#7c3aed,#4f46e5);">💬</button>
+            </div>
+
+            <!-- Controls row -->
+            <div class="controls-row" style="margin-bottom:6px;">
+                <label>engine
+                    <select id="engine-select">
+                        <option value="glassbox">SmolLM2-135M (NumPy)</option>
+                        <option value="gemma">Gemma 2 2B (PyTorch)</option>
+                    </select>
+                </label>
                 <label>max tokens
-                    <input type="number" id="max-tokens" value="25" min="1" max="100">
+                    <input type="number" id="max-tokens" value="60" min="1" max="200">
                 </label>
                 <label class="toggle">
                     <input type="checkbox" id="use-cache" checked>
                     <span>KV cache</span>
                 </label>
             </div>
-            
-            <button id="generate-btn" class="btn-primary">generate</button>
+
+            <!-- Attach image + visualize button row -->
+            <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+                <label class="btn-quiet" style="cursor:pointer; padding:4px 8px; font-size:0.78rem;">
+                    📎 image
+                    <input type="file" id="image-upload" accept="image/*" style="display:none">
+                </label>
+                <span id="image-filename" style="font-size:0.78rem; color:#8b949e; flex:1;"></span>
+                <button id="generate-btn" class="btn-primary"
+                    style="font-size:0.8rem; padding:5px 12px;">
+                    ▶ visualize
+                </button>
+            </div>
+
             <div id="branch-banner" class="branch-banner" hidden>
                 <span id="branch-label"></span>
                 <button id="back-to-original" class="btn-quiet" type="button">back to original</button>
             </div>
-            
+
             <div class="panel-header mt-sm">token stream <span class="hint-inline">(click token to jump)</span></div>
             <div id="token-stream" class="token-stream"></div>
             <div class="stream-legend">chip color = how surprised the model was by its own pick.</div>
