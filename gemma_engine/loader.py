@@ -1,5 +1,8 @@
 """
-gemma_engine/loader.py — Load tokenizer/processor and model for the Gemma engine.
+gemma_engine/loader.py — Load tokenizer/processor and model for the GlassBox engine.
+
+Works with ANY HuggingFace AutoModelForCausalLM or AutoModelForImageTextToText model.
+Point it at your model by setting the GLASSBOX_MODEL environment variable.
 
 Rules:
 - Uses attn_implementation="eager" (required for per-layer hidden-state access).
@@ -47,11 +50,16 @@ def _resolve_dtype(device: str):
 
 
 # ---------------------------------------------------------------------------
-# Public loader
+# Public loader — model-agnostic
 # ---------------------------------------------------------------------------
 
-class GemmaLoader:
-    """Holds the loaded model + processor/tokenizer.
+class ModelLoader:
+    """Holds the loaded model + processor/tokenizer for ANY HuggingFace LLM.
+
+    Usage
+    -----
+    loader = ModelLoader()
+    loader.load("mistralai/Mistral-7B-Instruct-v0.3")
 
     Attributes
     ----------
@@ -62,7 +70,7 @@ class GemmaLoader:
     dtype      : torch dtype used for the model
     supports_vision : True if the model accepts image inputs
     model_id   : the Hugging Face repo id that was loaded
-    config     : the model's config object (for logit_softcapping, layer counts, etc.)
+    config     : the model's config object (for softcapping, layer counts, etc.)
     """
 
     def __init__(self) -> None:
@@ -83,7 +91,7 @@ class GemmaLoader:
             from transformers import AutoProcessor, AutoConfig
         except ImportError as exc:
             raise RuntimeError(
-                "transformers and torch are required for the Gemma engine.\n"
+                "transformers and torch are required for the GlassBox HF engine.\n"
                 "Install them with:  pip install torch transformers accelerate"
             ) from exc
 
@@ -98,8 +106,8 @@ class GemmaLoader:
             msg = str(exc)
             if "gated" in msg or "401" in msg or "403" in msg or "token" in msg.lower():
                 raise RuntimeError(
-                    f"Model '{model_id}' is gated.\n"
-                    "1. Accept the license at https://huggingface.co/google/gemma-3-4b-it\n"
+                    f"Model '{model_id}' is gated — you need to accept its license.\n"
+                    f"1. Visit https://huggingface.co/{model_id} and accept the terms.\n"
                     "2. Run:  huggingface-cli login\n"
                     "   or set the HF_TOKEN environment variable."
                 ) from exc
@@ -131,10 +139,9 @@ class GemmaLoader:
         self.tokenizer = self.processor  # convenience alias
 
         # Load model — choose the right Auto class
-        logger.info("Loading model weights (this may download ~several GB) …")
+        logger.info("Loading model weights (this may download several GB) …")
         load_kwargs: dict = {
             "attn_implementation": "eager",   # required for hidden-state traces
-            "output_hidden_states": True,     # not a load kwarg but confirmed below
         }
         if self.dtype is not None:
             load_kwargs["torch_dtype"] = self.dtype
@@ -156,7 +163,7 @@ class GemmaLoader:
 
         self.model.eval()
         self._loaded = True
-        logger.info("Model loaded successfully on device=%s.", self.device)
+        logger.info("Model '%s' loaded successfully on device=%s.", model_id, self.device)
 
     @property
     def loaded(self) -> bool:
@@ -164,24 +171,43 @@ class GemmaLoader:
 
     def assert_loaded(self) -> None:
         if not self._loaded:
-            raise RuntimeError("GemmaLoader: model has not been loaded yet.")
+            raise RuntimeError("ModelLoader: model has not been loaded yet.")
 
 
 # ---------------------------------------------------------------------------
-# Module-level singleton (populated on first call to load_gemma())
+# Backward-compatible alias (GemmaLoader → ModelLoader)
 # ---------------------------------------------------------------------------
-_singleton: GemmaLoader | None = None
+GemmaLoader = ModelLoader
 
 
-def load_gemma(model_id: str | None = None, device_str: str = "auto") -> GemmaLoader:
-    """Load once and cache. Subsequent calls return the same instance."""
+# ---------------------------------------------------------------------------
+# Module-level singleton (populated on first call to load_model / load_gemma)
+# ---------------------------------------------------------------------------
+_singleton: ModelLoader | None = None
+
+
+def load_model(model_id: str | None = None, device_str: str = "auto") -> ModelLoader:
+    """Load once and cache. Subsequent calls return the same instance.
+
+    Parameters
+    ----------
+    model_id : any HuggingFace model ID, e.g. "mistralai/Mistral-7B-Instruct-v0.3"
+               Defaults to GLASSBOX_MODEL env var (falls back to GEMMA_MODEL).
+    device_str : "auto" | "cuda" | "mps" | "cpu"
+    """
     global _singleton
     if _singleton is not None and _singleton.loaded:
         return _singleton
-    from gemma_engine.config import GEMMA_MODEL, DEVICE
-    _singleton = GemmaLoader()
+    from gemma_engine.config import GLASSBOX_MODEL, DEVICE
+    _singleton = ModelLoader()
     _singleton.load(
-        model_id=model_id or GEMMA_MODEL,
+        model_id=model_id or GLASSBOX_MODEL,
         device_str=device_str or DEVICE,
     )
     return _singleton
+
+
+# Backward-compatible alias
+def load_gemma(model_id: str | None = None, device_str: str = "auto") -> ModelLoader:
+    """Alias for load_model() — kept for backward compatibility."""
+    return load_model(model_id=model_id, device_str=device_str)

@@ -1,18 +1,20 @@
 """
-gemma_engine/engine.py — Custom token-by-token generation loop for the Gemma engine.
+gemma_engine/engine.py — Custom token-by-token generation loop for ANY HuggingFace LLM.
 
 Design goals
 ------------
+* Works with any AutoModelForCausalLM or AutoModelForImageTextToText model.
 * Manual generation loop (NOT model.generate) using the KV cache explicitly.
 * apply_chat_template is called every turn so multi-turn history is always
   formatted correctly.
-* Per-token yields a GemmaStep with: token text, id, top-k candidates,
+* Per-token yields an InferenceStep with: token text, id, top-k candidates,
   per-layer attention (last query position, avg over heads), logit lens
   (per layer top-1 after final norm + lm_head), and a logit soft-cap if the
   model config specifies one.
 * output_hidden_states=True and output_attentions=True are passed to every
   forward call so we can read traces without monkey-patching.
 * Sliding-window layers are detected from the model config if present.
+  (Gemma 3 specific — other models simply get all-False for this field.)
 """
 from __future__ import annotations
 
@@ -48,8 +50,8 @@ class LensEntry:
 
 
 @dataclass
-class GemmaStep:
-    """Everything the frontend needs for one generated token."""
+class InferenceStep:
+    """Everything the frontend needs for one generated token (any HF model)."""
     token_id: int
     token_str: str
     tokens_per_sec: float
@@ -63,6 +65,10 @@ class GemmaStep:
     lens: list[LensEntry]
     # Entropy over full vocab (bits)
     entropy_bits: float
+
+
+# Backward-compatible alias
+GemmaStep = InferenceStep
 
 
 # ---------------------------------------------------------------------------
@@ -109,12 +115,19 @@ def _entropy_bits(probs: torch.Tensor) -> float:
 # Main engine
 # ---------------------------------------------------------------------------
 
-class GemmaEngine:
-    """Stateful chat engine with a multi-turn history.
+class GlassBoxEngine:
+    """Model-agnostic stateful chat engine — works with ANY HuggingFace LLM.
 
     Usage
     -----
-    engine = GemmaEngine(loader)
+    from gemma_engine.loader import load_model
+    from gemma_engine.engine import GlassBoxEngine
+
+    engine = GlassBoxEngine(load_model())           # uses GLASSBOX_MODEL env var
+    # — or any specific model —
+    # loader = ModelLoader(); loader.load("mistralai/Mistral-7B-Instruct-v0.3")
+    # engine = GlassBoxEngine(loader)
+
     for step in engine.chat("Hello, who are you?"):
         print(step.token_str, end="", flush=True)
     for step in engine.chat("What was my last question?"):
@@ -129,7 +142,7 @@ class GemmaEngine:
 
     def _detect_model_properties(self) -> None:
         cfg = self._loader.config
-        # Logit soft-capping (Gemma 2 / Gemma 3 have this)
+        # Logit soft-capping (Gemma 2 / Gemma 3 have this; other models return 0 or None)
         self._softcap: float | None = getattr(cfg, "final_logit_softcapping", None)
         if self._softcap == 0.0:
             self._softcap = None
@@ -139,6 +152,7 @@ class GemmaEngine:
 
         # Sliding-window layers: Gemma 3 stores sliding_window_pattern as a list
         # e.g. [True, True, False, True, True, False, ...]
+        # All other models will get all-False (no sliding window), which is correct.
         sw_pattern = getattr(cfg, "sliding_window_pattern", None)
         if isinstance(sw_pattern, (list, tuple)) and len(sw_pattern) == self._num_layers:
             self._sliding_window: list[bool] = [bool(v) for v in sw_pattern]
@@ -151,7 +165,8 @@ class GemmaEngine:
             self._sliding_window = [False] * self._num_layers
 
         logger.info(
-            "Gemma properties: layers=%d, softcap=%s, SW_layers=%d/%d",
+            "Model properties: id=%s layers=%d, softcap=%s, SW_layers=%d/%d",
+            self._loader.model_id,
             self._num_layers,
             self._softcap,
             sum(self._sliding_window),
@@ -364,7 +379,7 @@ class GemmaEngine:
                     )
                     lens.append(entry)
 
-            yield GemmaStep(
+            yield InferenceStep(
                 token_id=next_token_id,
                 token_str=token_str,
                 tokens_per_sec=tokens_per_sec,
@@ -381,3 +396,7 @@ class GemmaEngine:
         # Append this turn to history
         self._history.append({"role": "user", "content": user_message})
         self._history.append({"role": "assistant", "content": full_answer})
+
+
+# Backward-compatible alias — old code using GemmaEngine still works
+GemmaEngine = GlassBoxEngine

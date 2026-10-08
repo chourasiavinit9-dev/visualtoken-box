@@ -55,21 +55,23 @@ Verify the install:
 python -c "from gemma_engine.loader import GemmaLoader; print('OK')"
 ```
 
-### Step 2 — Point to Your Model
+### Step 2 — Point to Your Model (one line change)
 
-Open [`gemma_engine/config.py`](../../gemma_engine/config.py) and set:
-
-```python
-# Any HuggingFace model ID — text-only or multimodal
-GEMMA_MODEL = "your-org/your-model-id"   # e.g. "mistralai/Mistral-7B-Instruct-v0.3"
-DEVICE = "auto"                           # "cuda" | "mps" | "cpu" | "auto"
-MAX_NEW_TOKENS = 200
-TEMPERATURE = 0.8
-TOP_P = 0.95
+**Option A — Environment variable (recommended, no code edit):**
+```bash
+# Copy the template and edit it
+cp .env.example .env
+# Then edit .env and set GLASSBOX_MODEL to your model ID
 ```
 
-> **Note**: For gated models (Gemma, Llama 3, etc.) run `huggingface-cli login` first.
-> See [swap_model.md](./references/swap_model.md) for model-specific notes.
+**Option B — Edit the config file directly:**
+
+Open [`gemma_engine/config.py`](../../gemma_engine/config.py) and change:
+
+```python
+GLASSBOX_MODEL = "your-org/your-model-id"   # e.g. "mistralai/Mistral-7B-Instruct-v0.3"
+DEVICE = "auto"                              # "cuda" | "mps" | "cpu" | "auto"
+```
 
 ### Step 3 — Launch the Server
 

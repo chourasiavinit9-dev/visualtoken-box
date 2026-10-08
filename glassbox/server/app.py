@@ -67,32 +67,33 @@ async def ws_generate(ws: WebSocket):
                 image_b64 = image_b64.split(",", 1)[1]
             image_bytes = base64.b64decode(image_b64)
 
-        if engine_type == "gemma":
+        if engine_type in ("hf", "huggingface", "gemma"):
             try:
-                from gemma_engine.loader import load_gemma
-                from gemma_engine.engine import GemmaEngine
+                from gemma_engine.loader import load_model
+                from gemma_engine.engine import GlassBoxEngine
             except ImportError:
-                await ws.send_json({"type": "error", "message": "Gemma engine not installed."})
+                await ws.send_json({"type": "error", "message": "HuggingFace engine not installed. Run: pip install torch transformers accelerate"})
                 return
 
-            gemma_loader = load_gemma()
-            gemma_engine = GemmaEngine(gemma_loader)
+            hf_loader = load_model()
+            hf_engine = GlassBoxEngine(hf_loader)
 
             await ws.send_json({
                 "type": "init",
                 "config": {
-                    "num_layers": gemma_loader.config.num_hidden_layers,
-                    "num_heads": getattr(gemma_loader.config, "num_attention_heads", 0),
-                    "num_kv_heads": getattr(gemma_loader.config, "num_key_value_heads", 0),
-                    "hidden_size": gemma_loader.config.hidden_size,
-                    "vocab_size": gemma_loader.config.vocab_size,
+                    "model_id": hf_loader.model_id,
+                    "num_layers": hf_loader.config.num_hidden_layers,
+                    "num_heads": getattr(hf_loader.config, "num_attention_heads", 0),
+                    "num_kv_heads": getattr(hf_loader.config, "num_key_value_heads", 0),
+                    "hidden_size": hf_loader.config.hidden_size,
+                    "vocab_size": hf_loader.config.vocab_size,
                 },
                 "prompt": prompt,
                 "prompt_token_strs": [],
             })
 
             step_idx = 0
-            for step in gemma_engine.chat(
+            for step in hf_engine.chat(
                 user_message=prompt,
                 max_new_tokens=max_new_tokens,
                 temperature=temperature,
@@ -211,5 +212,15 @@ app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 # ─── Health Check ──────────────────────────────────────────────
 @app.get("/health")
+@app.get("/api/health")
 async def health():
-    return {"status": "ok", "model_loaded": STATE["model"] is not None}
+    from gemma_engine.loader import _singleton as hf_singleton
+    hf_loaded = hf_singleton is not None and hf_singleton.loaded
+    model_id = hf_singleton.model_id if hf_loaded else None
+    return {
+        "status": "ok",
+        "model_loaded": STATE["model"] is not None or hf_loaded,
+        "glassbox_engine": STATE["model"] is not None,
+        "hf_engine": hf_loaded,
+        "hf_model_id": model_id,
+    }

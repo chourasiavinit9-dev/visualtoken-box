@@ -9,15 +9,15 @@ Run:
     source venv/bin/activate
     python .agents/skills/glassbox-interpretability/examples/python_api_usage.py
 """
-from gemma_engine.loader import load_gemma
-from gemma_engine.engine import GemmaEngine
+from gemma_engine.loader import load_model
+from gemma_engine.engine import GlassBoxEngine
 
 
 def main():
     # ── 1. Load the model ────────────────────────────────────────────────────
     print("Loading model… (first time may download weights)")
-    loader = load_gemma()   # uses GEMMA_MODEL from gemma_engine/config.py
-    engine = GemmaEngine(loader)
+    loader = load_model()   # uses GLASSBOX_MODEL env var (or GEMMA_MODEL for compat)
+    engine = GlassBoxEngine(loader)
 
     # ── 2. Generate with full trace access ───────────────────────────────────
     prompt = "The capital of France is"
