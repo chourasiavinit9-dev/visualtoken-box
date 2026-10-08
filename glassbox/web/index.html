@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GlassBox 🔮 — See Inside the Model</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="landing" role="dialog" aria-label="GlassBox introduction">
+  <div class="lp-inner">
+    <div class="lp-kicker">OPEN-SOURCE AI · BUILT FROM SCRATCH</div>
+    <h1 class="lp-title">GlassBox</h1>
+    <p class="lp-tag">See inside the model.</p>
+    <p class="lp-pitch">A small language model rebuilt in pure NumPy. Watch it read, attend and decide, one token at a time.</p>
+    <div id="lp-grid" aria-hidden="true"></div>
+    <p class="lp-note">illustrative attention pattern</p>
+    <div class="lp-stats">
+      <div class="lp-card"><b>134.5M</b><span>parameters, 30 layers</span></div>
+      <div class="lp-card"><b>30 / 30</b><span>layers match PyTorch</span></div>
+      <div class="lp-card"><b>8.4e-5</b><span>max logit diff vs PyTorch</span></div>
+      <div class="lp-card"><b>25 / 25</b><span>greedy tokens identical</span></div>
+    </div>
+    <button id="lp-launch" class="lp-btn">Launch GlassBox →</button>
+    <p class="lp-foot">SmolLM2-135M · pure NumPy, no PyTorch at runtime · numbers from my test suite on a few prompts · made by Vivi</p>
+  </div>
+</div>
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-mark">◇</span>
+            <span class="brand-text">GlassBox</span>
+            <span class="brand-sub">see inside the model</span>
+        </div>
+        <div class="status">
+            <span id="status-dot" class="dot dot-idle"></span>
+            <span id="status-text">idle</span>
+        </div>
+    </header>
+
+    <main class="grid">
+        <!-- LEFT: Prompt + Token Stream -->
+        <section class="panel panel-left">
+            <div class="panel-header">prompt</div>
+            <textarea id="prompt" class="prompt-input" rows="2">Paris is in France. Rome is in</textarea>
+            
+            <div class="controls-row">
+                <label>max tokens
+                    <input type="number" id="max-tokens" value="25" min="1" max="100">
+                </label>
+                <label class="toggle">
+                    <input type="checkbox" id="use-cache" checked>
+                    <span>KV cache</span>
+                </label>
+            </div>
+            
+            <button id="generate-btn" class="btn-primary">generate</button>
+            <div id="branch-banner" class="branch-banner" hidden>
+                <span id="branch-label"></span>
+                <button id="back-to-original" class="btn-quiet" type="button">back to original</button>
+            </div>
+            
+            <div class="panel-header mt-sm">token stream <span class="hint-inline">(click token to jump)</span></div>
+            <div id="token-stream" class="token-stream"></div>
+            <div class="stream-legend">chip color = how surprised the model was by its own pick.</div>
+
+            <div class="metrics-row">
+                <div class="metric"><span class="metric-label">tok/s</span><span id="metric-speed" class="metric-value">—</span></div>
+                <div class="metric"><span class="metric-label">tokens</span><span id="metric-count" class="metric-value">—</span></div>
+                <div class="metric"><span class="metric-label">cache</span><span id="metric-cache" class="metric-value">—</span></div>
+            </div>
+        </section>
+
+        <!-- CENTER: Attention Heatmap -->
+        <section class="panel panel-center">
+            <div class="panel-header flex-between">
+                <span>attention matrix</span>
+                <span class="caption-text">attention-weighted view: where it looked, not proof of why it answered.</span>
+            </div>
+            
+            <div class="attn-controls">
+                <label>layer
+                    <select id="attn-layer"></select>
+                </label>
+                <label>head
+                    <select id="attn-head"></select>
+                </label>
+                <label class="toggle">
+                    <input type="checkbox" id="attn-avg-heads">
+                    <span>avg heads</span>
+                </label>
+                <label class="toggle">
+                    <input type="checkbox" id="attn-row-norm" checked>
+                    <span>row norm</span>
+                </label>
+                <label class="toggle">
+                    <input type="checkbox" id="attn-hide-sink" checked>
+                    <span>hide token 0 (sink)</span>
+                </label>
+                <button id="head-gallery-open" class="btn-quiet" type="button">head gallery</button>
+            </div>
+
+            <div class="canvas-wrapper">
+                <canvas id="attn-canvas"></canvas>
+            </div>
+            
+            <div class="colorbar">
+                <span>low attention</span>
+                <div class="colorbar-gradient"></div>
+                <span>high attention</span>
+            </div>
+            <div id="attn-info" class="attn-info">hover a cell to inspect attention weight</div>
+        </section>
+
+        <!-- RIGHT: Probability Bars + Sliders -->
+        <section class="panel panel-right">
+            <div class="panel-header flex-between">
+                <span>next-token probabilities</span>
+                <span id="entropy-badge" class="badge-entropy" title="Full-vocabulary model uncertainty at the selected step">model uncertainty: —</span>
+            </div>
+            
+            <div class="step-selector">
+                <label>step
+                    <input type="range" id="step-slider" min="0" max="0" value="0">
+                </label>
+                <span id="step-indicator">0 / 0</span>
+            </div>
+
+            <svg id="prob-bars" width="100%" height="230"></svg>
+            
+            <div class="panel-header mt-xs">sampling controls</div>
+            <div class="slider-group">
+                <label>temperature <span id="temp-val">0.70</span>
+                    <input type="range" id="temp-slider" min="0.1" max="2.0" step="0.05" value="0.7">
+                </label>
+                <label>top-p <span id="topp-val">0.90</span>
+                    <input type="range" id="topp-slider" min="0.1" max="1.0" step="0.05" value="0.9">
+                </label>
+                <label>top-k <span id="topk-val">40</span>
+                    <input type="range" id="topk-slider" min="1" max="100" step="1" value="40">
+                </label>
+            </div>
+            <p class="hint">sliders apply on the next generate · bars preview the reshaping · percentages among top 200</p>
+            <div class="model-card">
+    <div class="panel-header">model</div>
+    <div class="mc-grid">
+        <span>name</span><b>SmolLM2-135M</b>
+        <span>parameters</span><b>134.5M</b>
+        <span>layers</span><b>30</b>
+        <span>heads</span><b>9 (3 KV)</b>
+        <span>hidden size</span><b>576</b>
+        <span>vocabulary</span><b>49,152</b>
+    </div>
+</div>
+        </section>
+
+        <!-- BOTTOM: Logit Lens Strip -->
+        <section class="panel panel-bottom">
+            <div class="panel-header flex-between">
+                <span>logit lens — predictions layer by layer</span>
+                <span id="lens-legend" class="caption-text">B = after transformer block · gold = earliest stable top-1</span>
+            </div>
+            <div id="lens-strip" class="lens-strip"></div>
+        </section>
+    </main>
+
+    <dialog id="head-gallery" class="head-gallery-dialog">
+        <div class="head-gallery-header">
+            <div>
+                <div class="panel-header">attention heads</div>
+                <div class="caption-text">layer <span id="head-gallery-layer">selected</span></div>
+            </div>
+            <button id="head-gallery-close" class="btn-quiet" type="button" aria-label="Close head gallery">close</button>
+        </div>
+        <div id="head-gallery-grid" class="head-gallery-grid"></div>
+    </dialog>
+
+    <footer class="footer">
+        made with 🔮 by vivi · pure numpy transformer engine · no pytorch runtime
+    </footer>
+
+  <script src="/static/util.js"></script>
+<script src="/static/heatmap.js"></script>
+<script src="/static/probs.js"></script>
+<script src="/static/lens.js"></script>
+<script src="/static/app.js"></script>
+<script src="/static/landing.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+venv/
+.venv/
+models/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local environment files; keep shareable templates
+.env
+.env.*
+!.env.example
+
+# Test and packaging output
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# OS metadata
+.DS_Store
+Thumbs.db
