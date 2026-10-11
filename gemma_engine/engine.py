@@ -372,7 +372,7 @@ class VisualBoxEngine:
                     )
                     attention_per_head.append(
                         [
-                            [round(float(v), 4) for v in head_row.tolist()]
+                            [round(float(v), 4) for v in head_row]
                             for head_row in last_row.tolist()
                         ]
                     )
