@@ -15,5 +15,5 @@ RUN python download_model.py
 # Hugging Face Spaces uses port 7860
 EXPOSE 7860
 
-# Launch GlassBox server
-CMD ["python", "-m", "uvicorn", "glassbox.server.app:app", "--host", "0.0.0.0", "--port", "7860"]
+# Launch VisualBox server
+CMD ["python", "-m", "uvicorn", "visualbox.server.app:app", "--host", "0.0.0.0", "--port", "7860"]

@@ -1,8 +1,8 @@
 """
-gemma_engine/loader.py — Load tokenizer/processor and model for the GlassBox engine.
+gemma_engine/loader.py — Load tokenizer/processor and model for the VisualBox engine.
 
 Works with ANY HuggingFace AutoModelForCausalLM or AutoModelForImageTextToText model.
-Point it at your model by setting the GLASSBOX_MODEL environment variable.
+Point it at your model by setting the VISUALBOX_MODEL environment variable.
 
 Rules:
 - Uses attn_implementation="eager" (required for per-layer hidden-state access).
@@ -91,7 +91,7 @@ class ModelLoader:
             from transformers import AutoProcessor, AutoConfig
         except ImportError as exc:
             raise RuntimeError(
-                "transformers and torch are required for the GlassBox HF engine.\n"
+                "transformers and torch are required for the VisualBox HF engine.\n"
                 "Install them with:  pip install torch transformers accelerate"
             ) from exc
 
@@ -192,16 +192,16 @@ def load_model(model_id: str | None = None, device_str: str = "auto") -> ModelLo
     Parameters
     ----------
     model_id : any HuggingFace model ID, e.g. "mistralai/Mistral-7B-Instruct-v0.3"
-               Defaults to GLASSBOX_MODEL env var (falls back to GEMMA_MODEL).
+               Defaults to VISUALBOX_MODEL env var (falls back to GEMMA_MODEL).
     device_str : "auto" | "cuda" | "mps" | "cpu"
     """
     global _singleton
     if _singleton is not None and _singleton.loaded:
         return _singleton
-    from gemma_engine.config import GLASSBOX_MODEL, DEVICE
+    from gemma_engine.config import VISUALBOX_MODEL, DEVICE
     _singleton = ModelLoader()
     _singleton.load(
-        model_id=model_id or GLASSBOX_MODEL,
+        model_id=model_id or VISUALBOX_MODEL,
         device_str=device_str or DEVICE,
     )
     return _singleton

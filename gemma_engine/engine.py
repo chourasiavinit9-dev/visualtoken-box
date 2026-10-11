@@ -115,18 +115,18 @@ def _entropy_bits(probs: torch.Tensor) -> float:
 # Main engine
 # ---------------------------------------------------------------------------
 
-class GlassBoxEngine:
+class VisualBoxEngine:
     """Model-agnostic stateful chat engine — works with ANY HuggingFace LLM.
 
     Usage
     -----
     from gemma_engine.loader import load_model
-    from gemma_engine.engine import GlassBoxEngine
+    from gemma_engine.engine import VisualBoxEngine
 
-    engine = GlassBoxEngine(load_model())           # uses GLASSBOX_MODEL env var
+    engine = VisualBoxEngine(load_model())           # uses VISUALBOX_MODEL env var
     # — or any specific model —
     # loader = ModelLoader(); loader.load("mistralai/Mistral-7B-Instruct-v0.3")
-    # engine = GlassBoxEngine(loader)
+    # engine = VisualBoxEngine(loader)
 
     for step in engine.chat("Hello, who are you?"):
         print(step.token_str, end="", flush=True)
@@ -188,11 +188,14 @@ class GlassBoxEngine:
         image_bytes: bytes | None = None,
     ) -> Generator[GemmaStep, None, None]:
         """Yield one GemmaStep per generated token."""
-        import io
-        from PIL import Image
         from gemma_engine.config import (
-            MAX_NEW_TOKENS, TEMPERATURE, TOP_P, SYSTEM_PROMPT,
+            MAX_NEW_TOKENS, TEMPERATURE, TOP_P,
         )
+        import os
+        # Read system prompt live from env each call — avoids stale cached imports.
+        # Gemma 2's chat template raises "System role not supported" if non-empty.
+        SYSTEM_PROMPT = os.environ.get("VISUALBOX_SYSTEM_PROMPT",
+                        os.environ.get("GEMMA_SYSTEM_PROMPT", "")).strip()
 
         loader = self._loader
         loader.assert_loaded()
@@ -208,6 +211,7 @@ class GlassBoxEngine:
 
         # Build full message list for apply_chat_template
         messages: list[dict] = []
+        # Only inject system turn if the model supports it (Gemma 2 does NOT)
         if SYSTEM_PROMPT:
             messages.append({"role": "system", "content": SYSTEM_PROMPT})
         messages.extend(self._history)
@@ -215,6 +219,8 @@ class GlassBoxEngine:
         # Handle vision if an image is provided and model supports it
         images = None
         if image_bytes and loader.supports_vision:
+            import io
+            from PIL import Image
             images = [Image.open(io.BytesIO(image_bytes)).convert("RGB")]
             user_turn = {
                 "role": "user",
@@ -225,7 +231,7 @@ class GlassBoxEngine:
             }
         else:
             user_turn = {"role": "user", "content": user_message}
-            
+
         messages.append(user_turn)
 
         # Tokenise the full history every turn
@@ -242,19 +248,25 @@ class GlassBoxEngine:
 
         # Detect end-of-turn token id(s)
         eot_ids: set[int] = set()
+        # Collect eos / pad from processor or its inner tokenizer
+        _tok = getattr(processor, "tokenizer", processor)
         for attr in ("eos_token_id", "pad_token_id"):
-            val = getattr(processor, attr, None) or getattr(
-                getattr(processor, "tokenizer", None), attr, None
-            )
-            if val is not None:
-                if isinstance(val, list):
-                    eot_ids.update(val)
-                else:
-                    eot_ids.add(int(val))
-        # Gemma uses <end_of_turn> as a stop token
-        eot_str = processor.convert_tokens_to_ids("<end_of_turn>")
-        if eot_str and eot_str != processor.unk_token_id:
-            eot_ids.add(int(eot_str))
+            for src in (processor, _tok):
+                val = getattr(src, attr, None)
+                if val is not None:
+                    if isinstance(val, list):
+                        eot_ids.update(int(v) for v in val)
+                    else:
+                        eot_ids.add(int(val))
+        # Gemma / Qwen use a special end-of-turn token — add it safely
+        for special in ("<end_of_turn>", "<|im_end|>", "<|endoftext|>"):
+            try:
+                tid = _tok.convert_tokens_to_ids(special)
+                unk = getattr(_tok, "unk_token_id", None)
+                if tid is not None and tid != unk:
+                    eot_ids.add(int(tid))
+            except Exception:
+                pass
 
         # Helpers for the logit-lens projection
         try:
@@ -399,4 +411,4 @@ class GlassBoxEngine:
 
 
 # Backward-compatible alias — old code using GemmaEngine still works
-GemmaEngine = GlassBoxEngine
+GemmaEngine = VisualBoxEngine

@@ -1,5 +1,5 @@
 """
-GlassBox Server Runner — Launch FastAPI backend and web visualizer.
+VisualBox Server Runner — Launch FastAPI backend and web visualizer.
 Made with 🔮 by Vivi
 """
 import sys
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     print()
     
     uvicorn.run(
-        "glassbox.server.app:app",
+        "visualbox.server.app:app",
         host="127.0.0.1",
         port=8000,
         reload=False,  # Single process mode prevents Windows spawn path bugs

@@ -7,9 +7,9 @@ from transformers import AutoModelForCausalLM
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from glassbox.model import Transformer
-from glassbox.tokenizer import Tokenizer
-from glassbox.generate import generate_stream
+from visualbox.model import Transformer
+from visualbox.tokenizer import Tokenizer
+from visualbox.generate import generate_stream
 
 MODEL_DIR = ROOT / "models" / "SmolLM2-135M"
 tok = Tokenizer(MODEL_DIR)

@@ -22,10 +22,10 @@ dependencies = [
 ]
 
 [project.scripts]
-glassbox = "glassbox.cli:main"
+visualbox = "visualbox.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
 
 [tool.setuptools.package-data]
-"glassbox" = ["web/*", "web/**/*"]
+"visualbox" = ["web/*", "web/**/*"]

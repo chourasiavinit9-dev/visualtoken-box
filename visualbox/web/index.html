@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Box 🔮 — See Inside the Model</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/features.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="landing" role="dialog" aria-label="Visual Box introduction">
+  <div class="lp-inner">
+    <div class="lp-kicker">OPEN-SOURCE AI · BUILT FROM SCRATCH</div>
+    <h1 class="lp-title">Visual Box</h1>
+    <p class="lp-tag">See inside the model.</p>
+    <p class="lp-pitch">A small language model rebuilt in pure NumPy. Watch it read, attend and decide, one token at a time.</p>
+    <div id="lp-grid" aria-hidden="true"></div>
+    <p class="lp-note">illustrative attention pattern</p>
+    <div class="lp-stats">
+      <div class="lp-card"><b>134.5M</b><span>parameters, 30 layers</span></div>
+      <div class="lp-card"><b>30 / 30</b><span>layers match PyTorch</span></div>
+      <div class="lp-card"><b>8.4e-5</b><span>max logit diff vs PyTorch</span></div>
+      <div class="lp-card"><b>25 / 25</b><span>greedy tokens identical</span></div>
+    </div>
+    <button id="lp-launch" class="lp-btn">Launch Visual Box →</button>
+    <p class="lp-foot">SmolLM2-135M · pure NumPy, no PyTorch at runtime · numbers from my test suite on a few prompts · made by Vivi</p>
+  </div>
+</div>
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-mark">◇</span>
+            <span class="brand-text">Visual Box</span>
+            <span class="brand-sub">see inside the model</span>
+        </div>
+        <div class="status">
+            <span id="status-dot" class="dot dot-idle"></span>
+            <span id="status-text">idle</span>
+        </div>
+    </header>
+
+    <main class="grid">
+        <!-- LEFT: Chat Interface -->
+        <section class="panel panel-left">
+            <!-- Chat history: Q&A bubbles appear here -->
+            <div id="chat-history">
+                <span class="empty-hint" id="chat-empty-hint">Ask a question below ↓</span>
+            </div>
+
+            <!-- Input row -->
+            <div style="display:flex; gap:6px; align-items:stretch; margin-bottom:6px;">
+                <textarea id="prompt" class="prompt-input"
+                    style="flex:1; min-width:0; min-height:48px; height:48px;"
+                    placeholder="Ask a question…">What is the capital of India?</textarea>
+                <button id="ask-btn" class="btn-primary" title="Send"
+                    style="width:44px; padding:0; font-size:1.2rem; flex-shrink:0; background:linear-gradient(135deg,#7c3aed,#4f46e5);">💬</button>
+            </div>
+
+            <!-- Controls row -->
+            <div class="controls-row" style="margin-bottom:6px;">
+                <label>engine
+                    <select id="engine-select">
+                        <option value="visualbox">SmolLM2-135M (NumPy, fast)</option>
+                        <option value="hf" selected>Gemma 2 2B (HuggingFace)</option>
+                    </select>
+                </label>
+                <label>max tokens
+                    <input type="number" id="max-tokens" value="60" min="1" max="200">
+                </label>
+                <label class="toggle">
+                    <input type="checkbox" id="use-cache" checked>
+                    <span>KV cache</span>
+                </label>
+            </div>
+
+            <!-- 🎛️ Feature 1: Activation Steering Panel -->
+            <div class="steering-panel">
+                <div class="panel-header" style="margin-bottom:6px;">
+                    <span class="steering-title">🎛️ MODEL STEERING</span>
+                    <span id="steering-active-badge" class="steering-active-badge"></span>
+                </div>
+                <div id="steering-presets" class="steering-presets"></div>
+                <div class="steering-slider-row">
+                    <span class="steering-slider-label">strength</span>
+                    <input type="range" id="steering-slider" min="-5" max="5" step="0.1" value="0">
+                    <span id="steering-val" class="steering-val">+0.0</span>
+                </div>
+                <div class="steering-custom-row">
+                    <input type="text" id="steering-custom-input" placeholder="custom concept (press Enter)…">
+                    <button class="steering-reset" id="steering-reset" title="Reset steering">✕ reset</button>
+                </div>
+            </div>
+
+            <!-- Attach image + visualize button row -->
+            <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+                <label class="btn-quiet" style="cursor:pointer; padding:4px 8px; font-size:0.78rem;">
+                    📎 image
+                    <input type="file" id="image-upload" accept="image/*" style="display:none">
+                </label>
+                <span id="image-filename" style="font-size:0.78rem; color:#8b949e; flex:1;"></span>
+                <button id="generate-btn" class="btn-primary"
+                    style="font-size:0.8rem; padding:5px 12px;">
+                    ▶ visualize
+                </button>
+            </div>
+
+            <div id="branch-banner" class="branch-banner" hidden>
+                <span id="branch-label"></span>
+                <button id="back-to-original" class="btn-quiet" type="button">back to original</button>
+            </div>
+
+            <div class="panel-header mt-sm">token stream <span class="hint-inline">(click token to jump)</span></div>
+            <div id="token-stream" class="token-stream"></div>
+            <div class="stream-legend">chip color = how surprised the model was by its own pick.</div>
+
+            <!-- 🖼️ Feature 4: Tokenization Pictograph -->
+            <div class="token-pictograph-panel">
+                <div class="panel-header">
+                    <span>🖼️ tokenization pipeline</span>
+                    <div class="pic-header-actions">
+                        <button id="pic-expand-btn" class="pic-btn-sm" type="button" title="Open full-size diagram">↗ expand</button>
+                    </div>
+                </div>
+                <div id="pictograph-stage" class="pictograph-stage"></div>
+            </div>
+
+            <div class="metrics-row">
+                <div class="metric"><span class="metric-label">tok/s</span><span id="metric-speed" class="metric-value">—</span></div>
+                <div class="metric"><span class="metric-label">tokens</span><span id="metric-count" class="metric-value">—</span></div>
+                <div class="metric"><span class="metric-label">cache</span><span id="metric-cache" class="metric-value">—</span></div>
+            </div>
+        </section>
+
+        <!-- CENTER: Attention Heatmap -->
+        <section class="panel panel-center">
+            <div class="panel-header flex-between">
+                <span>attention matrix</span>
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <!-- 🌊 Feature 2: Rollout button -->
+                    <button id="rollout-btn" class="rollout-btn" title="Show cross-layer token influence (Attention Rollout)">🌊 why matrix</button>
+                    <span class="caption-text">where it looked → why it answered</span>
+                </div>
+            </div>
+
+            <!-- Rollout panel -->
+            <div id="rollout-panel" class="rollout-panel">
+                <div class="rollout-title">🌊 ATTENTION ROLLOUT — click a generated token to see which prompt tokens caused it</div>
+                <div style="margin-top:6px;font-size:0.7rem;color:var(--text-muted);">Generated tokens (click one):</div>
+                <div id="rollout-gen-tokens" class="rollout-tokens" style="margin-top:4px;"></div>
+                <div style="margin-top:8px;font-size:0.7rem;color:var(--text-muted);">Prompt influence:</div>
+                <div id="rollout-prompt-tokens" class="rollout-tokens" style="margin-top:4px;">
+                    <span style="font-size:0.7rem;color:var(--text-muted);">← click a generated token above</span>
+                </div>
+            </div>
+            
+            <div class="attn-controls">
+                <label>layer
+                    <select id="attn-layer"></select>
+                </label>
+                <label>head
+                    <select id="attn-head"></select>
+                    <span id="head-type-badge"></span>  <!-- 🏷️ Feature 3: badge -->
+                </label>
+                <label class="toggle">
+                    <input type="checkbox" id="attn-avg-heads">
+                    <span>avg heads</span>
+                </label>
+                <label class="toggle">
+                    <input type="checkbox" id="attn-row-norm" checked>
+                    <span>row norm</span>
+                </label>
+                <label class="toggle">
+                    <input type="checkbox" id="attn-hide-sink" checked>
+                    <span>hide token 0 (sink)</span>
+                </label>
+                <button id="head-gallery-open" class="btn-quiet" type="button">head gallery</button>
+            </div>
+
+            <div class="canvas-wrapper">
+                <canvas id="attn-canvas"></canvas>
+            </div>
+            
+            <div class="colorbar">
+                <span>low attention</span>
+                <div class="colorbar-gradient"></div>
+                <span>high attention</span>
+            </div>
+            <div id="attn-info" class="attn-info">hover a cell to inspect attention weight</div>
+        </section>
+
+        <!-- RIGHT: Probability Bars + Sliders -->
+        <section class="panel panel-right">
+            <div class="panel-header flex-between">
+                <span>next-token probabilities</span>
+                <span id="entropy-badge" class="badge-entropy" title="Full-vocabulary model uncertainty at the selected step">model uncertainty: —</span>
+            </div>
+            
+            <div class="step-selector">
+                <label>step
+                    <input type="range" id="step-slider" min="0" max="0" value="0">
+                </label>
+                <span id="step-indicator">0 / 0</span>
+            </div>
+
+            <svg id="prob-bars" width="100%" height="230"></svg>
+            
+            <div class="panel-header mt-xs">sampling controls</div>
+            <div class="slider-group">
+                <label>temperature <span id="temp-val">0.70</span>
+                    <input type="range" id="temp-slider" min="0.1" max="2.0" step="0.05" value="0.7">
+                </label>
+                <label>top-p <span id="topp-val">0.90</span>
+                    <input type="range" id="topp-slider" min="0.1" max="1.0" step="0.05" value="0.9">
+                </label>
+                <label>top-k <span id="topk-val">40</span>
+                    <input type="range" id="topk-slider" min="1" max="100" step="1" value="40">
+                </label>
+            </div>
+            <p class="hint">sliders apply on the next generate · bars preview the reshaping · percentages among top 200</p>
+            <div class="model-card">
+    <div class="panel-header">model</div>
+    <div class="mc-grid">
+        <span>name</span><b id="mc-name">SmolLM2-135M</b>
+        <span>parameters</span><b id="mc-params">134.5M</b>
+        <span>layers</span><b id="mc-layers">30</b>
+        <span>heads</span><b id="mc-heads">9 (3 KV)</b>
+        <span>hidden size</span><b id="mc-hidden">576</b>
+        <span>vocabulary</span><b id="mc-vocab">49,152</b>
+    </div>
+</div>
+        </section>
+
+        <!-- BOTTOM: Logit Lens Strip -->
+        <section class="panel panel-bottom">
+            <div class="panel-header flex-between">
+                <span>logit lens — predictions layer by layer</span>
+                <span id="lens-legend" class="caption-text">B = after transformer block · gold = earliest stable top-1</span>
+            </div>
+            <div id="lens-strip" class="lens-strip"></div>
+        </section>
+    </main>
+
+    <dialog id="head-gallery" class="head-gallery-dialog">
+        <div class="head-gallery-header">
+            <div>
+                <div class="panel-header">attention heads</div>
+                <div class="caption-text">layer <span id="head-gallery-layer">selected</span></div>
+            </div>
+            <button id="head-gallery-close" class="btn-quiet" type="button" aria-label="Close head gallery">close</button>
+        </div>
+        <div id="head-gallery-grid" class="head-gallery-grid"></div>
+    </dialog>
+
+    <!-- Fullscreen Pictograph Modal -->
+    <div id="pictograph-backdrop" class="pictograph-backdrop"></div>
+    <div id="pictograph-modal" class="pictograph-modal">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px;">
+            <span style="font-weight:700;font-size:0.95rem;color:#7aa2ff;letter-spacing:0.05em;font-family:var(--font-mono);">🔮 TOKENIZATION & TRANSFORM PIPELINE DIAGRAM</span>
+            <button id="pic-modal-close" class="btn-quiet" type="button" style="font-size:1.2rem;cursor:pointer;padding:2px 8px;">✕</button>
+        </div>
+        <div id="pictograph-modal-stage" class="pictograph-stage"></div>
+    </div>
+
+    <footer class="footer">
+        made with 🔮 by vivi · pure numpy transformer engine · no pytorch runtime
+    </footer>
+
+  <script src="/static/util.js?v=20261011"></script>
+<script src="/static/heatmap.js?v=20261011"></script>
+<script src="/static/probs.js?v=20261011"></script>
+<script src="/static/lens.js?v=20261011"></script>
+<script src="/static/features.js?v=20261011"></script>
+<script src="/static/app.js?v=20261011"></script>
+<script src="/static/landing.js?v=20261011"></script>
+</body>
+</html>

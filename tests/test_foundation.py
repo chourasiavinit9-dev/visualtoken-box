@@ -7,8 +7,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import numpy as np
-from glassbox.loader import ModelConfig, load_all_weights
-from glassbox.ops import rmsnorm, softmax, silu, precompute_rope, apply_rope, causal_mask
+from visualbox.loader import ModelConfig, load_all_weights
+from visualbox.ops import rmsnorm, softmax, silu, precompute_rope, apply_rope, causal_mask
 
 MODEL_DIR = ROOT / "models" / "SmolLM2-135M"
 
@@ -80,7 +80,7 @@ def test_ops():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  🔮 GlassBox Foundation Test Suite")
+    print("  🔮 VisualBox Foundation Test Suite")
     print("  Made with 🔮 by Vivi")
     print("=" * 50)
     print()

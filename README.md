@@ -108,7 +108,7 @@ Grounding model interpretability and transformer visualization in real-world eng
 ## 🗂️ Project Layout
 
 ```text
-glassbox/          NumPy model core, tokenizer, generation, and tracing engine
+visualbox/          NumPy model core, tokenizer, generation, and tracing engine
   ├── model.py     Transformer forward pass with GQA, RoPE, and SwiGLU
   ├── ops.py       Raw NumPy numerical operations (rmsnorm, silu, softmax, RoPE)
   ├── cache.py     KV cache implementation for low-latency autoregressive decoding

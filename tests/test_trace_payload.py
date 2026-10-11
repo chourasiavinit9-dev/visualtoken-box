@@ -1,6 +1,6 @@
 import numpy as np
 
-from glassbox.trace_payload import build_step_payload
+from visualbox.trace_payload import build_step_payload
 
 
 class TokenizerStub:

@@ -1,5 +1,5 @@
 """
-GlassBox Correctness Harness — Verify NumPy forward pass against HuggingFace PyTorch.
+VisualBox Correctness Harness — Verify NumPy forward pass against HuggingFace PyTorch.
 Proves exact numerical accuracy of RoPE, Attention, RMSNorm, and SwiGLU. 🔮
 Made with 💜 by Vivi
 """
@@ -17,16 +17,16 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from glassbox.model import Transformer
-from glassbox.tokenizer import Tokenizer
-from glassbox.generate import generate_stream
+from visualbox.model import Transformer
+from visualbox.tokenizer import Tokenizer
+from visualbox.generate import generate_stream
 
 MODEL_DIR = ROOT / "models" / "SmolLM2-135M"
 
 
 def test_forward_and_greedy_generation_match_huggingface():
     print("=" * 65)
-    print("  🔮 GlassBox vs Hugging Face Correctness Test")
+    print("  🔮 VisualBox vs Hugging Face Correctness Test")
     print("  Verifying NumPy math against PyTorch reference implementation")
     print("=" * 65)
     print()
@@ -41,11 +41,11 @@ def test_forward_and_greedy_generation_match_huggingface():
     hf_model.eval()
     print("   ✅ HF Model loaded!")
 
-    # 2. Load GlassBox From-Scratch Model
-    print("🔮 Loading GlassBox Engine (NumPy from-scratch)...")
+    # 2. Load VisualBox From-Scratch Model
+    print("🔮 Loading VisualBox Engine (NumPy from-scratch)...")
     gb_tok = Tokenizer(MODEL_DIR)
     gb_model = Transformer(MODEL_DIR)
-    print("   ✅ GlassBox Engine loaded!\n")
+    print("   ✅ VisualBox Engine loaded!\n")
 
     # 3. Test Prompt
     prompt = "Artificial Intelligence is"
@@ -60,7 +60,7 @@ def test_forward_and_greedy_generation_match_huggingface():
         hf_outputs = hf_model(**hf_inputs)
         hf_logits = hf_outputs.logits.numpy()  # (1, seq_len, vocab_size)
 
-    # 5. Run GlassBox Forward Pass
+    # 5. Run VisualBox Forward Pass
     gb_outputs = gb_model.forward(gb_ids)
     gb_logits = gb_outputs.logits  # (1, seq_len, vocab_size)
 
@@ -87,7 +87,7 @@ def test_forward_and_greedy_generation_match_huggingface():
     gb_top5 = np.argsort(gb_last_logits)[-5:][::-1]
 
     print("\n🔮 Top-5 Token Prediction Comparison:")
-    print(f"{'Rank':<6} | {'Hugging Face':<20} | {'GlassBox (NumPy)':<20} | {'Match?'}")
+    print(f"{'Rank':<6} | {'Hugging Face':<20} | {'VisualBox (NumPy)':<20} | {'Match?'}")
     print("-" * 65)
 
     all_matched = True
@@ -120,6 +120,6 @@ def test_forward_and_greedy_generation_match_huggingface():
     with torch.no_grad():
         hf_generated = hf_model.generate(input_ids, max_new_tokens=25, do_sample=False)
     hf_tokens = hf_generated[0, input_ids.shape[1]:].tolist()
-    assert len(gb_tokens) == 25, f"GlassBox generated {len(gb_tokens)} greedy tokens, expected 25"
+    assert len(gb_tokens) == 25, f"VisualBox generated {len(gb_tokens)} greedy tokens, expected 25"
     assert gb_tokens == hf_tokens, "25-token greedy generation differs from Hugging Face"
     print("Verified 25 of 25 greedy generated tokens match Hugging Face.")

@@ -1,0 +1,291 @@
+"""
+VisualBox Server — FastAPI app with WebSocket streaming + static UI mount.
+Run with: visualbox serve (or uvicorn visualbox.server.app:app)
+Made with by Vinit Chaurasia
+"""
+import json
+import os
+import time
+from pathlib import Path
+
+# Load .env before anything else so VISUALBOX_MODEL etc. are available
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent.parent.parent / ".env", override=False)
+except ImportError:
+    pass  # python-dotenv optional
+
+import numpy as np
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from contextlib import asynccontextmanager
+
+from visualbox.model import Transformer
+from visualbox.tokenizer import Tokenizer
+from visualbox.generate import generate_stream
+from visualbox.trace_payload import build_step_payload
+
+
+# ─── Global Model Instance ──────────────────────────────────────
+STATE = {
+    "model": None,
+    "tokenizer": None,
+    "model_dir": None,
+    "hf_loader": None,
+    "hf_engine": None,
+    "hf_load_error": None,
+}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Load model once on server startup."""
+    print("🔮 VisualBox Server starting...")
+
+    # 1. Load NumPy SmolLM2 engine (default)
+    model_dir = Path(__file__).parent.parent.parent / "models" / "SmolLM2-135M-Instruct"
+    print(f"📦 Loading SmolLM2 (NumPy engine) from {model_dir}...")
+    STATE["model_dir"] = model_dir
+    STATE["tokenizer"] = Tokenizer(model_dir)
+    STATE["model"] = Transformer(model_dir)
+    print("✅ SmolLM2 NumPy engine ready!")
+
+    # 2. Pre-load HF engine (Qwen / Gemma etc.) in background
+    try:
+        from gemma_engine.loader import load_model
+        from gemma_engine.engine import VisualBoxEngine
+        print(f"🤖 Loading HF model ({os.environ.get('VISUALBOX_MODEL', 'Qwen/Qwen2.5-0.5B-Instruct')})...")
+        hf_loader = load_model()
+        STATE["hf_loader"] = hf_loader
+        STATE["hf_engine"] = VisualBoxEngine(hf_loader)
+        print(f"✅ HF engine ready: {hf_loader.model_id}")
+    except Exception as e:
+        STATE["hf_load_error"] = str(e)
+        print(f"⚠️  HF engine not available: {e}")
+
+    print("✅ Server ready at http://localhost:8000")
+    yield
+    print("👋 Server shutting down.")
+
+
+app = FastAPI(title="VisualBox 🔮", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def add_no_cache_header(request, call_next):
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
+# ─── WebSocket: Generation Stream ──────────────────────────────
+@app.websocket("/ws/generate")
+async def ws_generate(ws: WebSocket):
+    await ws.accept()
+    try:
+        # Receive generation params from client
+        params = await ws.receive_json()
+        prompt = params.get("prompt", "The quick brown fox jumps over the lazy dog.")
+        max_new_tokens = int(params.get("max_new_tokens", 30))
+        temperature = float(params.get("temperature", 0.7))
+        top_k = int(params.get("top_k", 40))
+        top_p = float(params.get("top_p", 0.9))
+        use_cache = bool(params.get("use_cache", True))
+        trace = bool(params.get("trace", True))
+        engine_type = params.get("engine", "visualbox")
+
+        image_b64 = params.get("image_b64")
+        image_bytes = None
+        if image_b64:
+            import base64
+            if "," in image_b64:
+                image_b64 = image_b64.split(",", 1)[1]
+            image_bytes = base64.b64decode(image_b64)
+
+        if engine_type in ("hf", "huggingface", "gemma"):
+            hf_loader = STATE.get("hf_loader")
+            hf_engine = STATE.get("hf_engine")
+            if hf_engine is None:
+                err = STATE.get("hf_load_error", "HF engine not loaded")
+                await ws.send_json({"type": "error", "message": f"HF engine unavailable: {err}. Restart the server."})
+                return
+
+            # Tokenize prompt for UI display
+            _tok = hf_loader.processor
+            try:
+                prompt_ids = _tok.encode(prompt)
+                prompt_token_strs = [_tok.decode([t], skip_special_tokens=False) for t in prompt_ids]
+            except Exception:
+                prompt_ids = []
+                prompt_token_strs = []
+
+            await ws.send_json({
+                "type": "init",
+                "config": {
+                    "model_id": hf_loader.model_id,
+                    "model_name": hf_loader.model_id.split("/")[-1],
+                    "num_layers": hf_loader.config.num_hidden_layers,
+                    "num_heads": getattr(hf_loader.config, "num_attention_heads", 0),
+                    "num_kv_heads": getattr(hf_loader.config, "num_key_value_heads", 0),
+                    "hidden_size": hf_loader.config.hidden_size,
+                    "vocab_size": hf_loader.config.vocab_size,
+                    "num_params": sum(p.numel() for p in hf_loader.model.parameters()) if hf_loader.model else 0,
+                },
+                "prompt": prompt,
+                "prompt_token_ids": prompt_ids,
+                "prompt_token_strs": prompt_token_strs,
+            })
+
+            step_idx = 0
+            for step in hf_engine.chat(
+                user_message=prompt,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                top_k_trace=top_k,
+                greedy=(temperature == 0.0),
+                image_bytes=image_bytes,
+            ):
+                payload = {
+                    "type": "step",
+                    "step": step_idx,
+                    "token_id": step.token_id,
+                    "token_str": step.token_str,
+                    "tokens_per_sec": step.tokens_per_sec,
+                    "cache_active": True,
+                    "entropy_bits": step.entropy_bits,
+                    "top_logit_ids": [c.token_id for c in step.top_k_candidates],
+                    "top_logit_values": [c.prob for c in step.top_k_candidates],
+                    "top_logit_strs": [c.token_str for c in step.top_k_candidates],
+                    "attention_new_rows": step.attention_per_head if trace else None,
+                    "lens_predictions": [
+                        {"layer": l.layer, "token_str": l.token_str, "prob": l.prob, "is_sliding_window": getattr(l, "is_sliding_window", False)}
+                        for l in step.lens
+                    ] if trace else None
+                }
+                await ws.send_json(payload)
+                step_idx += 1
+
+            await ws.send_json({"type": "done", "total_steps": step_idx})
+            return
+
+        # --- Default VisualBox Engine ---
+        model = STATE["model"]
+        tok = STATE["tokenizer"]
+
+        # Wrap in SmolLM2-Instruct chat template so the model answers questions
+        # instead of doing raw text completion.
+        SYSTEM = "You are a helpful AI assistant. Answer questions clearly and concisely."
+        formatted_prompt = (
+            f"<|im_start|>system\n{SYSTEM}<|im_end|>\n"
+            f"<|im_start|>user\n{prompt}<|im_end|>\n"
+            f"<|im_start|>assistant\n"
+        )
+
+        # Send initial metadata (show the original user prompt to UI, not the template)
+        token_ids = tok.encode(prompt)
+        await ws.send_json({
+            "type": "init",
+            "config": {
+                "num_layers": model.config.num_hidden_layers,
+                "num_heads": model.config.num_attention_heads,
+                "num_kv_heads": model.config.num_key_value_heads,
+                "hidden_size": model.config.hidden_size,
+                "vocab_size": model.config.vocab_size,
+            },
+            "prompt": prompt,
+            "prompt_token_ids": token_ids,
+            "prompt_token_strs": [tok.decode(t) for t in token_ids],
+        })
+
+        # Stream generation using the formatted prompt
+        # stop on <|im_end|> (token 2) to prevent looping
+        step_idx = 0
+        for step in generate_stream(
+            model=model,
+            tokenizer=tok,
+            prompt=formatted_prompt,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            use_cache=use_cache,
+            trace=trace,
+            stop_token_ids={2},  # <|im_end|> stops the assistant turn
+        ):
+            payload = build_step_payload(
+                step_idx=step_idx,
+                token_id=step.token_id,
+                token_str=step.token_str,
+                tokens_per_sec=step.tokens_per_sec,
+                cache_active=step.is_cache_active,
+                logits=step.output_logits,
+                traces=step.traces,
+                tokenizer=tok,
+                model=model,
+                top_n=200,
+                include_attention=trace,
+                include_lens=trace,
+            )
+            payload["type"] = "step"
+            await ws.send_json(payload)
+            step_idx += 1
+
+        await ws.send_json({"type": "done", "total_steps": step_idx})
+
+    except WebSocketDisconnect:
+        print("Client disconnected.")
+    except Exception as e:
+        print(f"❌ Error during generation: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            await ws.send_json({"type": "error", "message": str(e)})
+        except Exception:
+            pass
+
+
+# ─── Static Files: Serve the UI ────────────────────────────────
+WEB_DIR = Path(__file__).parent.parent / "web"
+
+@app.get("/")
+async def root():
+    return FileResponse(WEB_DIR / "index.html")
+
+# Mount everything else as static
+app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
+
+
+# ─── Tokenize Endpoint ─────────────────────────────────────────
+@app.get("/api/tokenize")
+async def tokenize_endpoint(text: str = ""):
+    tok = STATE.get("tokenizer")
+    if not tok:
+        return {"text": text, "token_ids": [], "token_strs": []}
+    query_text = text if text else "What is the capital of India?"
+    ids = tok.encode(query_text)
+    token_strs = [tok.decode(t) for t in ids]
+    return {
+        "text": query_text,
+        "token_ids": ids,
+        "token_strs": token_strs,
+    }
+
+
+# ─── Health Check ──────────────────────────────────────────────
+@app.get("/health")
+@app.get("/api/health")
+async def health():
+    from gemma_engine.loader import _singleton as hf_singleton
+    hf_loaded = hf_singleton is not None and hf_singleton.loaded
+    model_id = hf_singleton.model_id if hf_loaded else None
+    return {
+        "status": "ok",
+        "model_loaded": STATE["model"] is not None or hf_loaded,
+        "visualbox_engine": STATE["model"] is not None,
+        "hf_engine": hf_loaded,
+        "hf_model_id": model_id,
+    }

@@ -6,15 +6,15 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from glassbox.model import Transformer
-from glassbox.tokenizer import Tokenizer
+from visualbox.model import Transformer
+from visualbox.tokenizer import Tokenizer
 
 MODEL_DIR = ROOT / "models" / "SmolLM2-135M"
 
 
 def test_forward_pass_produces_finite_logits():
     print("=" * 60)
-    print("  🔮 GlassBox Forward Pass Test")
+    print("  🔮 VisualBox Forward Pass Test")
     print("  Testing full 30-layer transformer forward pass in NumPy")
     print("=" * 60)
     print()
